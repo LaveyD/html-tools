@@ -3,69 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>JustHTMLs - 开源 HTML 工具集</title>
-    <meta name="description" content="JustHTMLs 是一个开源的 HTML 工具集平台，汇集各种轻量级的在线工具，无需安装，即开即用。">
-    <link rel="canonical" href="https://www.htmls.dev/">
-    
-    <!-- Open Graph / Facebook -->
-    <meta property="og:type" content="website">
-    <meta property="og:url" content="https://www.htmls.dev/">
-    <meta property="og:title" content="JustHTMLs - 开源 HTML 工具集">
-    <meta property="og:description" content="JustHTMLs 是一个开源的 HTML 工具集平台，汇集各种轻量级的在线工具，无需安装，即开即用。">
-    
-    <!-- Twitter -->
-    <meta property="twitter:card" content="summary_large_image">
-    <meta property="twitter:url" content="https://www.htmls.dev/">
-    <meta property="twitter:title" content="JustHTMLs - 开源 HTML 工具集">
-    <meta property="twitter:description" content="JustHTMLs 是一个开源的 HTML 工具集平台，汇集各种轻量级的在线工具，无需安装，即开即用。">
-    
-    <link rel="icon" href="favicon.svg">
-    
-    <!-- Structured Data (JSON-LD) -->
-    <script type="application/ld+json">
-    {
-      "@context": "https://schema.org",
-      "@type": "WebSite",
-      "name": "JustHTMLs",
-      "url": "https://www.htmls.dev",
-      "description": "开源 HTML 工具集 - 轻量、隐私、无需安装",
-      "inLanguage": "zh-CN",
-      "publisher": {
-        "@type": "Organization",
-        "name": "JustHTMLs",
-        "url": "https://www.htmls.dev",
-        "logo": {
-          "@type": "ImageObject",
-          "url": "https://www.htmls.dev/favicon.svg"
-        },
-        "sameAs": [
-          "https://github.com/justhtmls/html-tools"
-        ]
-      },
-      "potentialAction": {
-        "@type": "SearchAction",
-        "target": {
-          "@type": "EntryPoint",
-          "urlTemplate": "https://www.htmls.dev/?search={search_term_string}"
-        },
-        "query-input": "required name=search_term_string"
-      }
-    }
-    </script>
-    <script type="application/ld+json">
-    {
-      "@context": "https://schema.org",
-      "@type": "Organization",
-      "name": "JustHTMLs",
-      "url": "https://www.htmls.dev",
-      "logo": "https://www.htmls.dev/favicon.svg",
-      "description": "开源 HTML 工具集平台，汇集各种轻量级的在线工具",
-      "sameAs": [
-        "https://github.com/justhtmls/html-tools"
-      ]
-    }
-    </script>
-    
+    <title>软件工具集</title>
+    <meta name="description" content="在线工具与局域网软件共享平台，汇集各种轻量级的在线工具和常用软件，即开即用。">
+    <link rel="icon" href="yml-logo.svg">
     <link rel="stylesheet" href="assets/vendor/fontawesome/css/all.min.css">
     <style>
         :root {
@@ -80,6 +20,10 @@
             --border: #334155;
             --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
             --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.4);
+            --green: #10b981;
+            --amber: #f59e0b;
+            --red: #ef4444;
+            --blue: #3b82f6;
         }
 
         [data-theme="light"] {
@@ -93,11 +37,7 @@
             --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.15);
         }
 
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
 
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
@@ -117,7 +57,7 @@
         header {
             background: var(--bg-card);
             border-bottom: 1px solid var(--border);
-            padding: 20px 0;
+            padding: 16px 0;
             position: sticky;
             top: 0;
             z-index: 100;
@@ -128,7 +68,7 @@
             align-items: center;
             justify-content: space-between;
             flex-wrap: wrap;
-            gap: 20px;
+            gap: 16px;
         }
 
         .logo {
@@ -142,16 +82,23 @@
         .logo-icon {
             width: 40px;
             height: 40px;
-            background: linear-gradient(135deg, var(--primary), var(--secondary));
-            border-radius: 10px;
+            flex-shrink: 0;
+            background: white;
+            border-radius: 8px;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 20px;
+            padding: 2px;
+        }
+
+        .logo-icon img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
         }
 
         .logo-text {
-            font-size: 24px;
+            font-size: 22px;
             font-weight: 700;
             background: linear-gradient(135deg, var(--primary), var(--secondary));
             -webkit-background-clip: text;
@@ -167,20 +114,21 @@
 
         .header-actions {
             display: flex;
-            gap: 12px;
+            gap: 10px;
+            align-items: center;
         }
 
         .btn {
-            padding: 10px 20px;
+            padding: 9px 18px;
             border-radius: 8px;
             border: none;
             cursor: pointer;
-            font-size: 14px;
+            font-size: 13px;
             font-weight: 500;
             text-decoration: none;
             display: inline-flex;
             align-items: center;
-            gap: 8px;
+            gap: 6px;
             transition: all 0.2s;
         }
 
@@ -203,16 +151,35 @@
             background: #475569;
         }
 
+        .theme-toggle {
+            width: 36px;
+            height: 36px;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+            background: var(--bg-hover);
+            color: var(--text);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            transition: all 0.2s;
+        }
+
+        .theme-toggle:hover {
+            border-color: var(--primary);
+        }
+
         /* Hero */
         .hero {
-            padding: 60px 0 40px;
+            padding: 48px 0 32px;
             text-align: center;
         }
 
         .hero h1 {
-            font-size: 42px;
+            font-size: 36px;
             font-weight: 800;
-            margin-bottom: 16px;
+            margin-bottom: 12px;
             background: linear-gradient(135deg, var(--primary), var(--secondary), #ec4899);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
@@ -220,67 +187,39 @@
         }
 
         .hero p {
-            font-size: 18px;
+            font-size: 16px;
             color: var(--text-muted);
-            max-width: 600px;
-            margin: 0 auto 40px;
+            max-width: 500px;
+            margin: 0 auto 28px;
         }
 
         .stats {
             display: flex;
             justify-content: center;
-            gap: 40px;
-            margin-top: 30px;
+            gap: 48px;
+            margin-top: 24px;
         }
 
-        .stat-item {
-            text-align: center;
-        }
+        .stat-item { text-align: center; }
 
         .stat-value {
-            font-size: 28px;
+            font-size: 26px;
             font-weight: 700;
             color: var(--primary);
         }
 
         .stat-label {
-            font-size: 14px;
+            font-size: 13px;
             color: var(--text-muted);
         }
 
         /* Search & Filter */
-        .search-section {
-            padding: 30px 0;
-        }
+        .search-section { padding: 24px 0; }
 
         .search-box {
             display: flex;
-            gap: 12px;
-            margin-bottom: 20px;
-        }
-
-        .sort-wrapper {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            padding: 0 12px;
-            background: var(--bg-card);
-            border: 1px solid var(--border);
-            border-radius: 12px;
-            color: var(--text-muted);
-        }
-
-        .sort-select {
-            background: transparent;
-            border: none;
-            color: var(--text);
-            font-size: 14px;
-            padding: 12px 4px 12px 0;
-            cursor: pointer;
-        }
-
-        .sort-select:focus {
-            outline: none;
+            gap: 10px;
+            margin-bottom: 16px;
         }
 
         .search-input-wrapper {
@@ -290,7 +229,7 @@
 
         .search-icon {
             position: absolute;
-            left: 16px;
+            left: 14px;
             top: 50%;
             transform: translateY(-50%);
             color: var(--text-muted);
@@ -298,12 +237,12 @@
 
         .search-input {
             width: 100%;
-            padding: 14px 16px 14px 44px;
+            padding: 12px 14px 12px 40px;
             background: var(--bg-card);
             border: 1px solid var(--border);
-            border-radius: 12px;
+            border-radius: 10px;
             color: var(--text);
-            font-size: 16px;
+            font-size: 15px;
             transition: all 0.2s;
         }
 
@@ -313,50 +252,99 @@
             box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
         }
 
-        .search-shortcut {
-            position: absolute;
-            right: 12px;
-            top: 50%;
-            transform: translateY(-50%);
+        .sort-wrapper {
             display: flex;
             align-items: center;
-            gap: 4px;
-            color: var(--text-muted);
-            font-size: 11px;
-            pointer-events: none;
-            opacity: 0.6;
-        }
-
-        .search-shortcut kbd {
-            background: var(--bg-hover);
+            gap: 6px;
+            padding: 0 10px;
+            background: var(--bg-card);
             border: 1px solid var(--border);
-            border-radius: 4px;
-            padding: 2px 6px;
-            font-family: monospace;
-            font-size: 11px;
+            border-radius: 10px;
+            color: var(--text-muted);
+            font-size: 13px;
         }
 
+        .sort-select {
+            background: transparent;
+            border: none;
+            color: var(--text);
+            font-size: 13px;
+            padding: 12px 0;
+            cursor: pointer;
+        }
+
+        .sort-select:focus { outline: none; }
+
+        /* Main Tabs */
+        .main-tabs {
+            display: flex;
+            gap: 0;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            overflow: hidden;
+            margin-bottom: 16px;
+        }
+
+        .main-tab {
+            flex: 1;
+            padding: 12px 20px;
+            text-align: center;
+            cursor: pointer;
+            font-size: 15px;
+            font-weight: 600;
+            color: var(--text-muted);
+            transition: all 0.2s;
+            border: none;
+            background: transparent;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .main-tab:hover {
+            color: var(--text);
+            background: var(--bg-hover);
+        }
+
+        .main-tab.active {
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            color: white;
+        }
+
+        .main-tab .tab-count {
+            font-size: 12px;
+            padding: 2px 8px;
+            border-radius: 10px;
+            background: rgba(255,255,255,0.2);
+        }
+
+        .main-tab:not(.active) .tab-count {
+            background: var(--bg-hover);
+        }
+
+        /* Category Tabs */
         .category-tabs {
             display: flex;
             gap: 8px;
             flex-wrap: wrap;
             justify-content: center;
+            margin-bottom: 24px;
         }
 
         .category-tab {
-            padding: 8px 16px;
+            padding: 6px 14px;
             background: var(--bg-card);
             border: 1px solid var(--border);
             border-radius: 20px;
             color: var(--text-muted);
             cursor: pointer;
             transition: all 0.2s;
-            font-size: 14px;
+            font-size: 13px;
         }
 
-        .category-tab:hover {
-            background: var(--bg-hover);
-        }
+        .category-tab:hover { background: var(--bg-hover); }
 
         .category-tab.active {
             background: linear-gradient(135deg, var(--primary), var(--secondary));
@@ -364,49 +352,60 @@
             color: white;
         }
 
-        /* Tools Grid */
+        /* Content Sections */
+        .content-section {
+            display: none;
+        }
+
+        .content-section.active {
+            display: block;
+        }
+
+        /* Tools / Software Grid */
         .tools-section {
-            padding: 30px 0 70px;
+            padding: 0 0 60px;
         }
 
         .section-header {
             display: flex;
             align-items: center;
             justify-content: space-between;
-            margin-bottom: 24px;
+            margin-bottom: 20px;
         }
 
         .section-title {
-            font-size: 24px;
+            font-size: 20px;
             font-weight: 700;
         }
 
         .tools-count {
             color: var(--text-muted);
-            font-size: 14px;
+            font-size: 13px;
         }
 
         .tools-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-            gap: 20px;
+            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+            gap: 16px;
+            align-items: stretch;
         }
-
 
         .tool-card {
             background: var(--bg-card);
             border: 1px solid var(--border);
-            border-radius: 16px;
-            padding: 24px;
+            border-radius: 14px;
+            padding: 20px;
             cursor: pointer;
             transition: all 0.3s;
             text-decoration: none;
             color: inherit;
-            display: block;
+            display: flex;
+            flex-direction: column;
+            position: relative;
         }
 
         .tool-card:hover {
-            transform: translateY(-4px);
+            transform: translateY(-3px);
             box-shadow: var(--shadow-lg);
             border-color: var(--primary);
         }
@@ -414,30 +413,27 @@
         .tool-header {
             display: flex;
             align-items: flex-start;
-            gap: 16px;
-            margin-bottom: 16px;
+            gap: 14px;
+            margin-bottom: 12px;
         }
 
         .tool-icon {
-            width: 56px;
-            height: 56px;
-            border-radius: 12px;
+            width: 48px;
+            height: 48px;
+            border-radius: 10px;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 24px;
+            font-size: 22px;
             flex-shrink: 0;
         }
 
-        .tool-info {
-            flex: 1;
-            min-width: 0;
-        }
+        .tool-info { flex: 1; min-width: 0; }
 
         .tool-title {
-            font-size: 18px;
+            font-size: 16px;
             font-weight: 600;
-            margin-bottom: 4px;
+            margin-bottom: 2px;
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
@@ -451,70 +447,72 @@
             gap: 4px;
         }
 
+        .tool-version {
+            font-size: 11px;
+            color: var(--green);
+            margin-top: 2px;
+        }
+
+        .tool-size {
+            font-size: 11px;
+            color: var(--text-muted);
+        }
+
         .tool-updated {
-            font-size: 12px;
+            font-size: 11px;
             color: var(--text-muted);
             display: inline-flex;
             align-items: center;
-            gap: 6px;
-            margin-top: 6px;
-        }
-
-        .tool-updated i {
-            font-size: 12px;
+            gap: 4px;
+            margin-top: 4px;
         }
 
         .tool-description {
             color: var(--text-muted);
-            font-size: 14px;
+            font-size: 13px;
             line-height: 1.5;
-            margin-bottom: 16px;
+            margin-bottom: 14px;
             display: -webkit-box;
-            -webkit-line-clamp: 2;
+            -webkit-line-clamp: 1;
             -webkit-box-orient: vertical;
             overflow: hidden;
+            cursor: default;
         }
 
         .tool-footer {
             display: flex;
             align-items: center;
             justify-content: space-between;
-        }
-
-        .tool-clicks {
-            font-size: 12px;
-            color: var(--text-muted);
-            display: inline-flex;
-            flex-direction: column;
-            align-items: flex-end;
-            gap: 6px;
-        }
-
-        .tool-meta {
-            display: inline-flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        .tool-clicks span {
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            white-space: nowrap;
+            gap: 8px;
+            margin-top: 8px;
         }
 
         .tool-tags {
             display: flex;
-            gap: 6px;
+            gap: 4px;
             flex-wrap: wrap;
         }
 
         .tool-tag {
-            font-size: 11px;
-            padding: 4px 8px;
+            font-size: 10px;
+            padding: 3px 7px;
             background: var(--bg-hover);
             border-radius: 4px;
             color: var(--text-muted);
+        }
+
+        .tool-meta {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .tool-meta-item {
+            font-size: 11px;
+            color: var(--text-muted);
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
         }
 
         .tool-arrow {
@@ -523,103 +521,37 @@
             transition: opacity 0.2s;
         }
 
-        .tool-card:hover .tool-arrow {
-            opacity: 1;
+        .tool-card:hover .tool-arrow { opacity: 1; }
+
+        .download-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 5px 12px;
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            color: white;
+            border-radius: 6px;
+            font-size: 12px;
+            text-decoration: none;
+            transition: all 0.2s;
         }
 
-        /* Featured Badge */
+        .download-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 2px 8px rgba(99, 102, 241, 0.4);
+        }
+
         .featured-badge {
             position: absolute;
-            top: 12px;
-            left: 12px;
+            top: 10px;
+            left: 10px;
             background: linear-gradient(135deg, #f59e0b, #ef4444);
             color: white;
-            font-size: 10px;
+            font-size: 9px;
             font-weight: 600;
-            padding: 4px 8px;
-            border-radius: 12px;
+            padding: 3px 7px;
+            border-radius: 10px;
             z-index: 5;
-        }
-
-        .tool-card {
-            position: relative;
-        }
-
-        .tool-card.favorite {
-            border-color: #fbbf24;
-            box-shadow: 0 0 0 1px rgba(251, 191, 36, 0.3);
-        }
-
-        .tool-card .favorite-btn {
-            position: absolute;
-            top: 12px;
-            right: 12px;
-            background: rgba(255, 255, 255, 0.1);
-            border: 1px solid var(--border);
-            border-radius: 6px;
-            width: 32px;
-            height: 32px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-            transition: all 0.2s;
-            opacity: 0;
-            z-index: 10;
-        }
-
-        .tool-card:hover .favorite-btn {
-            opacity: 1;
-        }
-
-        .tool-card .favorite-btn:hover {
-            background: rgba(255, 255, 255, 0.15);
-            border-color: var(--primary);
-        }
-
-        .tool-card .favorite-btn.active {
-            opacity: 1;
-            background: rgba(251, 191, 36, 0.2);
-            border-color: #fbbf24;
-            color: #fbbf24;
-        }
-
-        .tool-card .favorite-badge {
-            position: absolute;
-            top: 8px;
-            right: 8px;
-            background: linear-gradient(135deg, #fbbf24, #f59e0b);
-            color: white;
-            width: 24px;
-            height: 24px;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 12px;
-        }
-
-        .favorites-section {
-            margin-bottom: 30px;
-        }
-
-        .favorites-section:empty {
-            display: none;
-        }
-
-        .favorites-title {
-            font-size: 18px;
-            font-weight: 600;
-            margin-bottom: 16px;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .favorites-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-            gap: 20px;
         }
 
         /* Empty State */
@@ -630,84 +562,17 @@
         }
 
         .empty-icon {
-            font-size: 64px;
-            margin-bottom: 20px;
-            opacity: 0.5;
-        }
-
-        /* Footer */
-        footer {
-            background: var(--bg-card);
-            border-top: 1px solid var(--border);
-            padding: 40px 0;
-            margin-top: 60px;
-        }
-
-        .footer-content {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-            gap: 40px;
-        }
-
-        .footer-section h3 {
-            font-size: 16px;
-            font-weight: 600;
+            font-size: 48px;
             margin-bottom: 16px;
         }
 
-        .footer-section p {
-            color: var(--text-muted);
-            font-size: 14px;
-            line-height: 1.6;
-        }
-
-        .footer-links {
-            list-style: none;
-        }
-
-        .footer-links li {
-            margin-bottom: 8px;
-        }
-
-        .footer-links a {
-            color: var(--text-muted);
-            text-decoration: none;
-            font-size: 14px;
-            transition: color 0.2s;
-        }
-
-        .footer-links a:hover {
-            color: var(--primary);
-        }
-
-        .footer-bottom {
-            text-align: center;
-            padding-top: 30px;
-            margin-top: 30px;
-            border-top: 1px solid var(--border);
-            color: var(--text-muted);
-            font-size: 14px;
-        }
-
-        /* Loading */
-        .loading {
-            text-align: center;
-            padding: 40px;
-            color: var(--text-muted);
-        }
-
+        /* Responsive */
         @media (max-width: 768px) {
-            .hero h1 {
-                font-size: 32px;
-            }
-
-            .tools-grid {
-                grid-template-columns: 1fr;
-            }
-
-            .stats {
-                gap: 20px;
-            }
+            .hero h1 { font-size: 28px; }
+            .stats { gap: 24px; }
+            .stat-value { font-size: 22px; }
+            .tools-grid { grid-template-columns: 1fr; }
+            .header-content { flex-direction: column; align-items: flex-start; }
         }
     </style>
 </head>
@@ -715,502 +580,370 @@
     <header>
         <div class="container">
             <div class="header-content">
-                <a href="./" class="logo">
-                    <div class="logo-icon">⚡</div>
+                <a href="/" class="logo">
+                    <div class="logo-icon"><img src="yml-logo.svg" alt="YML"></div>
                     <div>
-                        <div class="logo-text">JustHTMLs</div>
-                        <div class="logo-tagline">开源 HTML 工具集</div>
+                        <div class="logo-text">软件工具集</div>
+                        <div class="logo-tagline">在线工具 · 软件共享</div>
                     </div>
                 </a>
                 <div class="header-actions">
-                    <button class="btn btn-secondary" id="theme-toggle" title="切换主题">
+                    <a href="software/request.html" class="btn btn-secondary" title="提交需求">
+                        <i class="fas fa-paper-plane"></i> 提交需求
+                    </a>
+                    <a href="/admin/" class="btn btn-secondary" title="管理后台">
+                        <i class="fas fa-cog"></i> 管理
+                    </a>
+                    <button class="theme-toggle" id="theme-toggle" title="切换主题">
                         <i class="fas fa-moon"></i>
                     </button>
-                    <a href="https://github.com/justhtmls/html-tools/issues/new?template=feedback.md" target="_blank" class="btn btn-secondary">
-                        <i class="fas fa-comment-dots"></i> 问题反馈
-                    </a>
-                    <a href="tools-rank.html" class="btn btn-secondary">
-                        <i class="fas fa-chart-line"></i> 工具排行
-                    </a>
-                    <a href="https://github.com/justhtmls/html-tools/issues/new?template=tool-request.md" target="_blank" class="btn btn-secondary">
-                        <i class="fas fa-lightbulb"></i> 提交需求
-                    </a>
-                    <a href="https://github.com/justhtmls/html-tools" target="_blank" class="btn btn-secondary">
-                        <i class="fab fa-github"></i> GitHub
-                    </a>
-                    <a href="https://github.com/justhtmls/html-tools/issues/new?template=tool-submission.md" target="_blank" class="btn btn-primary">
-                        <i class="fas fa-plus"></i> 贡献工具
-                    </a>
                 </div>
             </div>
         </div>
     </header>
 
-    <main>
-        <section class="hero">
-            <div class="container">
-                <h1>轻量级 HTML 工具集合</h1>
-                <p>所有工具均为单文件 HTML，无需安装，打开即用。保护隐私，数据本地处理。</p>
-                <div class="stats">
-                    <div class="stat-item">
-                        <div class="stat-value" id="tools-count">100</div>
-                        <div class="stat-label">工具数量</div>
-                    </div>
-                    <div class="stat-item">
-                        <div class="stat-value" id="categories-count">5</div>
-                        <div class="stat-label">分类数量</div>
-                    </div>
-                    <div class="stat-item">
-                        <div class="stat-value" id="home-day-count">--/--</div>
-                        <div class="stat-label">今日 PV/UV</div>
-                    </div>
-                    <div class="stat-item">
-                        <div class="stat-value" id="home-total-count">--/--</div>
-                        <div class="stat-label">总 PV/UV</div>
-                    </div>
-                    <div class="stat-item">
-                        <div class="stat-value">100%</div>
-                        <div class="stat-label">开源免费</div>
-                    </div>
-                </div>
-            </div>
-        </section>
-
-        <section class="search-section">
-            <div class="container">
-                <div class="search-box">
-                    <div class="search-input-wrapper">
-                        <i class="fas fa-search search-icon"></i>
-                        <input type="text" class="search-input" id="search-input" placeholder="搜索工具名称、描述或标签...">
-                        <div class="search-shortcut">
-                            <kbd>Ctrl</kbd><kbd>K</kbd>
-                        </div>
-                    </div>
-                    <div class="sort-wrapper">
-                        <i class="far fa-clock"></i>
-                        <select class="sort-select" id="sort-select">
-                            <option value="updated-desc">更新时间：新 → 旧</option>
-                            <option value="updated-asc">更新时间：旧 → 新</option>
-                        </select>
-                    </div>
-                </div>
-                <div class="category-tabs" id="category-tabs">
-                    <button class="category-tab active" data-category="all">
-                        <i class="fas fa-th-large"></i> 全部
-                    </button>
-                </div>
-            </div>
-        </section>
-
-        <section class="tools-section">
-            <div class="container">
-                <div class="favorites-section" id="favorites-section"></div>
-                <div class="section-header">
-                    <h2 class="section-title">工具列表</h2>
-                    <span class="tools-count" id="tools-count-label">加载中...</span>
-                </div>
-                <div class="tools-grid" id="tools-grid">
-                    <div class="loading">
-                        <i class="fas fa-spinner fa-spin"></i> 加载工具列表...
-                    </div>
-                </div>
-            </div>
-        </section>
-
-        <section class="container" style="padding: 60px 20px;">
-            <div style="background: linear-gradient(135deg, var(--bg-card), var(--bg-hover)); border-radius: 20px; padding: 40px; text-align: center; border: 1px solid var(--border);">
-                <h2 style="font-size: 28px; margin-bottom: 16px;">🚀 贡献你的工具</h2>
-                <p style="color: var(--text-muted); max-width: 500px; margin: 0 auto 24px;">
-                    JustHTMLs 欢迎社区贡献！创建一个新的 HTML 工具，通过 GitHub Issues 提交，让我们一起构建最完整的工具集合。
-                </p>
-                <a href="https://github.com/justhtmls/html-tools/issues/new?template=tool-submission.md" target="_blank" class="btn btn-primary" style="font-size: 16px; padding: 12px 24px;">
-                    <i class="fas fa-plus"></i> 提交新工具
-                </a>
-            </div>
-        </section>
-    </main>
-
-    <footer>
+    <div class="hero">
         <div class="container">
-            <div class="footer-content">
-                <div class="footer-section">
-                    <h3>关于 JustHTMLs</h3>
-                    <p>JustHTMLs 是一个开源的 HTML 工具集平台，所有工具均为单文件 HTML，无需构建步骤，可直接在浏览器中运行。</p>
+            <h1>YML · 软件共享与在线工具</h1>
+            <p>汇集各类常用软件与在线工具</p>
+            <div class="stats">
+                <div class="stat-item">
+                    <div class="stat-value" id="stat-software">--</div>
+                    <div class="stat-label">共享软件</div>
                 </div>
-                <div class="footer-section">
-                    <h3>快速链接</h3>
-                    <ul class="footer-links">
-                        <li><a href="https://github.com/justhtmls" target="_blank"><i class="fab fa-github"></i> GitHub 组织</a></li>
-                        <li><a href="tools-rank.html"><i class="fas fa-chart-line"></i> 工具排行</a></li>
-                        <li><a href="https://github.com/justhtmls/html-tools" target="_blank"><i class="fas fa-globe"></i> 网站仓库</a></li>
-                        <li><a href="https://github.com/justhtmls/html-tools/issues" target="_blank"><i class="fas fa-bug"></i> 报告问题</a></li>
-                        <li><a href="https://github.com/justhtmls/html-tools/blob/main/CONTRIBUTING.md" target="_blank">贡献指南</a></li>
-                    </ul>
+                <div class="stat-item">
+                    <div class="stat-value" id="stat-tools">--</div>
+                    <div class="stat-label">在线工具</div>
                 </div>
-                <div class="footer-section">
-                    <h3>设计理念</h3>
-                    <ul class="footer-links">
-                        <li><a href="reference.html">设计文档</a></li>
-                        <li>单文件 HTML，内联 CSS/JS</li>
-                        <li>无需构建，复制即用</li>
-                        <li>数据本地处理，保护隐私</li>
-                    </ul>
+                <div class="stat-item">
+                    <div class="stat-value" id="stat-downloads">--</div>
+                    <div class="stat-label">下载次数</div>
                 </div>
-            </div>
-            <div class="footer-bottom">
-                <p>&copy; 2025 JustHTMLs. 基于 MIT 许可证开源。</p>
             </div>
         </div>
-    </footer>
+    </div>
+
+    <div class="container">
+        <!-- Search -->
+        <div class="search-section">
+            <div class="search-box">
+                <div class="search-input-wrapper">
+                    <i class="fas fa-search search-icon"></i>
+                    <input type="text" class="search-input" id="search-input" placeholder="搜索工具或软件..." autocomplete="off">
+                </div>
+                <div class="sort-wrapper">
+                    <i class="fas fa-sort"></i>
+                    <select class="sort-select" id="sort-select">
+                        <option value="newest">最新</option>
+                        <option value="oldest">最早</option>
+                        <option value="popular">热门</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Main Tabs -->
+            <div class="main-tabs">
+                <button class="main-tab active" data-tab="software" onclick="switchTab('software')">
+                    <i class="fas fa-download"></i> 软件列表
+                    <span class="tab-count" id="tab-software-count">--</span>
+                </button>
+                <button class="main-tab" data-tab="tools" onclick="switchTab('tools')">
+                    <i class="fas fa-wrench"></i> 在线工具
+                    <span class="tab-count" id="tab-tools-count">--</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Software Section -->
+        <div class="content-section active" id="software-section">
+            <div class="tools-section">
+                <div class="category-tabs" id="software-categories"></div>
+                <div class="section-header">
+                    <div class="section-title">共享软件</div>
+                    <div class="tools-count" id="software-count-label">加载中...</div>
+                </div>
+                <div class="tools-grid" id="software-grid"></div>
+            </div>
+        </div>
+
+        <!-- Tools Section -->
+        <div class="content-section" id="tools-section">
+            <div class="tools-section">
+                <div class="category-tabs" id="tools-categories"></div>
+                <div class="section-header">
+                    <div class="section-title">在线工具</div>
+                    <div class="tools-count" id="tools-count-label">加载中...</div>
+                </div>
+                <div class="tools-grid" id="tools-grid"></div>
+            </div>
+        </div>
+    </div>
 
     <script>
-        let toolsData = null;
-        let currentCategory = 'all';
+        // ── Theme ──────────────────────────────────────────
+        function initTheme() {
+            const saved = localStorage.getItem('theme') || 'dark';
+            document.documentElement.setAttribute('data-theme', saved);
+            updateThemeIcon(saved);
+        }
+
+        function updateThemeIcon(theme) {
+            const icon = document.querySelector('#theme-toggle i');
+            icon.className = theme === 'light' ? 'fas fa-sun' : 'fas fa-moon';
+        }
+
+        document.getElementById('theme-toggle').addEventListener('click', () => {
+            const current = document.documentElement.getAttribute('data-theme');
+            const next = current === 'light' ? 'dark' : 'light';
+            document.documentElement.setAttribute('data-theme', next);
+            localStorage.setItem('theme', next);
+            updateThemeIcon(next);
+        });
+
+        // ── Tab switching ─────────────────────────────────
+        let currentTab = 'software';
+
+        function switchTab(tab) {
+            currentTab = tab;
+            document.querySelectorAll('.main-tab').forEach(el => {
+                el.classList.toggle('active', el.dataset.tab === tab);
+            });
+            document.getElementById('tools-section').classList.toggle('active', tab === 'tools');
+            document.getElementById('software-section').classList.toggle('active', tab === 'software');
+            renderCurrentView();
+        }
+
+        // ── Tools Data ────────────────────────────────────
+        let toolsData = { categories: [], tools: [] };
+        let toolsCategory = 'all';
         let searchQuery = '';
-        let sortOption = 'updated-desc';
-        let favorites = JSON.parse(localStorage.getItem('justhtmls-favorites') || '[]');
-        let currentTheme = localStorage.getItem('justhtmls-theme') || 'dark';
+        let sortOption = 'newest';
 
         async function loadTools() {
             try {
-                const response = await fetch('index.json');
-                const data = await response.json();
-                toolsData = data;
-                renderCategories();
-                renderTools();
-                updateStats();
-                return Promise.resolve();
-            } catch (error) {
-                console.error('Failed to load tools:', error);
-                document.getElementById('tools-grid').innerHTML = `
-                    <div class="empty-state">
-                        <div class="empty-icon">⚠️</div>
-                        <p>加载工具列表失败，请刷新页面重试。</p>
-                    </div>
-                `;
-                return Promise.reject(error);
+                const res = await fetch('index.json');
+                toolsData = await res.json();
+            } catch (e) {
+                console.error('Failed to load tools:', e);
             }
         }
 
-        function updateStats() {
-            document.getElementById('tools-count').textContent = toolsData.tools.length;
-            document.getElementById('categories-count').textContent = toolsData.categories.length;
+        function renderToolsCategories() {
+            const container = document.getElementById('tools-categories');
+            const cats = toolsData.categories || [];
+            let html = '<button class="category-tab active" onclick="setToolsCategory(\'all\')">全部</button>';
+            cats.forEach(c => {
+                html += `<button class="category-tab" onclick="setToolsCategory('${c.id}')">${c.icon || ''} ${c.name}</button>`;
+            });
+            container.innerHTML = html;
         }
 
-        function renderCategories() {
-            const container = document.getElementById('category-tabs');
-            container.innerHTML = `
-                <button class="category-tab ${currentCategory === 'all' ? 'active' : ''}" data-category="all">
-                    <i class="fas fa-th-large"></i> 全部
-                </button>
-            `;
-            const allButton = container.querySelector('[data-category="all"]');
-            allButton.addEventListener('click', () => selectCategory('all'));
-
-            toolsData.categories.forEach(cat => {
-                const btn = document.createElement('button');
-                btn.className = `category-tab ${currentCategory === cat.id ? 'active' : ''}`;
-                btn.dataset.category = cat.id;
-                btn.innerHTML = `${cat.icon} ${cat.name}`;
-                btn.addEventListener('click', () => selectCategory(cat.id));
-                container.appendChild(btn);
+        function setToolsCategory(cat) {
+            toolsCategory = cat;
+            document.querySelectorAll('#tools-categories .category-tab').forEach(el => {
+                el.classList.toggle('active',
+                    (cat === 'all' && el.textContent.trim() === '全部') ||
+                    el.getAttribute('onclick')?.includes(`'${cat}'`));
             });
-        }
-
-        function selectCategory(category) {
-            currentCategory = category;
-            document.querySelectorAll('.category-tab').forEach(tab => {
-                tab.classList.toggle('active', tab.dataset.category === category);
-            });
-            updateURL();
             renderTools();
         }
 
-        function updateURL() {
-            const params = new URLSearchParams();
-            if (searchQuery) params.set('search', searchQuery);
-            if (currentCategory !== 'all') params.set('category', currentCategory);
-            if (sortOption !== 'updated-desc') params.set('sort', sortOption);
-            const newURL = window.location.pathname + (params.toString() ? '?' + params.toString() : '');
-            window.history.replaceState({}, '', newURL);
-        }
-
-        function loadURLState() {
-            const params = new URLSearchParams(window.location.search);
-            if (params.has('search')) {
-                searchQuery = params.get('search').toLowerCase();
-                document.getElementById('search-input').value = params.get('search');
+        function getFilteredTools() {
+            let tools = [...toolsData.tools];
+            if (toolsCategory !== 'all') {
+                tools = tools.filter(t => t.category === toolsCategory);
             }
-            if (params.has('category')) {
-                currentCategory = params.get('category');
+            if (searchQuery) {
+                const q = searchQuery.toLowerCase();
+                tools = tools.filter(t =>
+                    t.name.toLowerCase().includes(q) ||
+                    t.description.toLowerCase().includes(q) ||
+                    (t.tags || []).some(tag => tag.toLowerCase().includes(q)));
             }
-            if (params.has('sort')) {
-                sortOption = params.get('sort');
-                document.getElementById('sort-select').value = sortOption;
-            }
-        }
-
-        function filterTools() {
-            const filtered = toolsData.tools.filter(tool => {
-                const matchesCategory = currentCategory === 'all' || tool.category === currentCategory;
-                const matchesSearch = !searchQuery ||
-                    tool.name.toLowerCase().includes(searchQuery) ||
-                    tool.description.toLowerCase().includes(searchQuery) ||
-                    tool.tags.some(tag => tag.toLowerCase().includes(searchQuery));
-                return matchesCategory && matchesSearch;
-            });
-            const withTimestamp = (tool) => new Date(tool.updatedAt || tool.createdAt || 0).getTime();
-            if (sortOption === 'updated-asc') {
-                return filtered.sort((a, b) => withTimestamp(a) - withTimestamp(b));
-            }
-            return filtered.sort((a, b) => withTimestamp(b) - withTimestamp(a));
-        }
-
-        function toggleFavorite(toolId, event) {
-            event.preventDefault();
-            event.stopPropagation();
-            const index = favorites.indexOf(toolId);
-            if (index > -1) {
-                favorites.splice(index, 1);
-            } else {
-                favorites.push(toolId);
-            }
-            localStorage.setItem('justhtmls-favorites', JSON.stringify(favorites));
-            renderTools();
-            renderFavorites();
-        }
-
-        function renderFavorites() {
-            const container = document.getElementById('favorites-section');
-            if (!favorites.length) {
-                container.innerHTML = '';
-                return;
-            }
-
-            const favoriteTools = toolsData.tools.filter(tool => favorites.includes(tool.id));
-            if (!favoriteTools.length) {
-                container.innerHTML = '';
-                return;
-            }
-
-            container.innerHTML = `
-                <div class="favorites-title">
-                    <i class="fas fa-star" style="color: #fbbf24;"></i> 收藏的工具
-                </div>
-                <div class="favorites-grid">
-                    ${favoriteTools.map(tool => {
-                        const category = toolsData.categories.find(c => c.id === tool.category);
-                        const updatedAt = tool.updatedAt || tool.createdAt || '未知';
-                        return `
-                            <a href="${tool.entry}" class="tool-card favorite" style="--tool-color: ${tool.color}">
-                                <button class="favorite-btn active" onclick="toggleFavorite('${tool.id}', event)" title="取消收藏">
-                                    <i class="fas fa-star"></i>
-                                </button>
-                                <div class="tool-header">
-                                    <div class="tool-icon" style="background: ${tool.color}20; color: ${tool.color};">
-                                        ${tool.icon}
-                                    </div>
-                                    <div class="tool-info">
-                                        <div class="tool-title">${tool.name}</div>
-                                        <div class="tool-category">${category?.icon || ''} ${category?.name || '未分类'}</div>
-                                        <div class="tool-updated"><i class="far fa-clock"></i> ${updatedAt}</div>
-                                    </div>
-                                </div>
-                                <div class="tool-description">${tool.description}</div>
-                                <div class="tool-footer">
-                                    <div class="tool-tags">
-                                        ${tool.tags.slice(0, 3).map(tag => `<span class="tool-tag">${tag}</span>`).join('')}
-                                    </div>
-                                    <div class="tool-meta">
-                                        <i class="fas fa-arrow-right tool-arrow"></i>
-                                    </div>
-                                </div>
-                            </a>
-                        `;
-                    }).join('')}
-                </div>
-            `;
+            if (sortOption === 'newest') tools.sort((a, b) => (b.updatedAt || b.createdAt || '').localeCompare(a.updatedAt || a.createdAt || ''));
+            else if (sortOption === 'oldest') tools.sort((a, b) => (a.updatedAt || a.createdAt || '').localeCompare(b.updatedAt || b.createdAt || ''));
+            return tools;
         }
 
         function renderTools() {
             const container = document.getElementById('tools-grid');
-            const filteredTools = filterTools();
+            const filtered = getFilteredTools();
+            document.getElementById('tools-count-label').textContent = `共 ${filtered.length} 个工具`;
 
-            document.getElementById('tools-count-label').textContent = `共 ${filteredTools.length} 个工具`;
-
-            if (filteredTools.length === 0) {
-                container.innerHTML = `
-                    <div class="empty-state">
-                        <div class="empty-icon">🔍</div>
-                        <p>未找到匹配的工具</p>
-                    </div>
-                `;
+            if (filtered.length === 0) {
+                container.innerHTML = `<div class="empty-state"><div class="empty-icon">🔍</div><p>未找到匹配的工具</p></div>`;
                 return;
             }
 
-            container.innerHTML = filteredTools.map(tool => {
-                const category = toolsData.categories.find(c => c.id === tool.category);
-                const updatedAt = tool.updatedAt || tool.createdAt || '未知';
-                const isFavorite = favorites.includes(tool.id);
+            container.innerHTML = filtered.map(tool => {
+                const category = toolsData.categories?.find(c => c.id === tool.category);
                 return `
-                    <a href="${tool.entry}" class="tool-card ${isFavorite ? 'favorite' : ''}" style="--tool-color: ${tool.color}">
-                        <button class="favorite-btn ${isFavorite ? 'active' : ''}" onclick="toggleFavorite('${tool.id}', event)" title="${isFavorite ? '取消收藏' : '收藏'}">
-                            <i class="fas fa-star"></i>
-                        </button>
-                        ${tool.featured ? '<span class="featured-badge">精选</span>' : ''}
-                        <div class="tool-header">
-                            <div class="tool-icon" style="background: ${tool.color}20; color: ${tool.color};">
-                                ${tool.icon}
-                            </div>
-                            <div class="tool-info">
-                                <div class="tool-title">${tool.name}</div>
-                                <div class="tool-category">${category?.icon || ''} ${category?.name || '未分类'}</div>
-                                <div class="tool-updated"><i class="far fa-clock"></i> ${updatedAt}</div>
-                            </div>
+                <a href="${tool.entry}" class="tool-card">
+                    ${tool.featured ? '<span class="featured-badge">精选</span>' : ''}
+                    <div class="tool-header">
+                        <div class="tool-icon" style="background: ${tool.color}20; color: ${tool.color};">
+                            ${tool.icon}
                         </div>
-                        <div class="tool-description">${tool.description}</div>
-                        <div class="tool-footer">
-                            <div class="tool-tags">
-                                ${tool.tags.slice(0, 3).map(tag => `<span class="tool-tag">${tag}</span>`).join('')}
-                            </div>
-                            <div class="tool-meta">
-                                <i class="fas fa-arrow-right tool-arrow"></i>
-                            </div>
+                        <div class="tool-info">
+                            <div class="tool-title">${tool.name}</div>
+                            <div class="tool-category">${category?.icon || ''} ${category?.name || '未分类'}</div>
                         </div>
-                    </a>
-                `;
+                    </div>
+                    <div class="tool-description">${tool.description}</div>
+                    <div class="tool-footer">
+                        <div class="tool-tags">
+                            ${tool.tags?.slice(0, 3).map(tag => `<span class="tool-tag">${tag}</span>`).join('') || ''}
+                        </div>
+                        <i class="fas fa-arrow-right tool-arrow"></i>
+                    </div>
+                </a>`;
             }).join('');
         }
 
-        function formatCount(value) {
-            if (typeof value !== 'number') {
-                return '--';
-            }
-            return value.toLocaleString('zh-CN');
-        }
+        // ── Software Data ─────────────────────────────────
+        let softwareList = [];
+        let softwareCategory = 'all';
+        const softwareCategories = [
+            { id: 'dev', name: '开发工具', icon: '💻' },
+            { id: 'design', name: '设计工具', icon: '🎨' },
+            { id: 'system', name: '系统工具', icon: '⚙️' },
+            { id: 'security', name: '安全工具', icon: '🔒' },
+            { id: 'network', name: '网络工具', icon: '🌐' },
+            { id: 'office', name: '办公工具', icon: '📄' },
+            { id: 'other', name: '其他', icon: '📦' },
+        ];
 
-        function formatPair(pv, uv) {
-            return `${formatCount(pv)}/${formatCount(uv)}`;
-        }
-
-        async function loadHomeStats() {
+        async function loadSoftware() {
             try {
-                const response = await fetch('api/clicks?ids=home');
-                if (!response.ok) {
-                    return;
+                const res = await fetch('/api/software/list');
+                const data = await res.json();
+                if (data.code === 0) {
+                    softwareList = data.data;
                 }
-                const data = await response.json();
-                const stats = data.counts?.home;
-                if (!stats) {
-                    return;
-                }
-                document.getElementById('home-day-count').textContent = formatPair(stats.pv?.day, stats.uv?.day);
-                document.getElementById('home-total-count').textContent = formatPair(stats.pv?.total, stats.uv?.total);
-            } catch (error) {
-                console.warn('Failed to load home stats', error);
+            } catch (e) {
+                console.error('Failed to load software:', e);
             }
         }
 
-
-        // Theme toggle
-        function initTheme() {
-            document.documentElement.setAttribute('data-theme', currentTheme);
-            const themeIcon = document.querySelector('#theme-toggle i');
-            themeIcon.className = currentTheme === 'light' ? 'fas fa-moon' : 'fas fa-sun';
-        }
-
-        document.getElementById('theme-toggle').addEventListener('click', () => {
-            currentTheme = currentTheme === 'light' ? 'dark' : 'light';
-            localStorage.setItem('justhtmls-theme', currentTheme);
-            initTheme();
-        });
-
-        // Keyboard shortcuts and navigation
-        let selectedToolIndex = -1;
-
-        function highlightTool(index) {
-            const cards = document.querySelectorAll('.tool-card');
-            cards.forEach((card, i) => {
-                card.style.outline = i === index ? `2px solid var(--primary)` : 'none';
-                card.style.outlineOffset = i === index ? '2px' : '0';
+        function renderSoftwareCategories() {
+            const container = document.getElementById('software-categories');
+            let html = '<button class="category-tab active" onclick="setSoftwareCategory(\'all\')">全部</button>';
+            softwareCategories.forEach(c => {
+                html += `<button class="category-tab" onclick="setSoftwareCategory('${c.id}')">${c.icon} ${c.name}</button>`;
             });
-            selectedToolIndex = index;
-            if (index >= 0 && cards[index]) {
-                cards[index].scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-            }
+            container.innerHTML = html;
         }
 
-        function openSelectedTool() {
-            if (selectedToolIndex >= 0) {
-                const cards = document.querySelectorAll('.tool-card');
-                if (cards[selectedToolIndex]) {
-                    cards[selectedToolIndex].click();
-                }
-            }
+        function setSoftwareCategory(cat) {
+            softwareCategory = cat;
+            document.querySelectorAll('#software-categories .category-tab').forEach(el => {
+                el.classList.toggle('active',
+                    (cat === 'all' && el.textContent.trim() === '全部') ||
+                    el.getAttribute('onclick')?.includes(`'${cat}'`));
+            });
+            renderSoftware();
         }
 
-        document.addEventListener('keydown', (e) => {
-            // Ctrl+K or Cmd+K to focus search
-            if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
-                e.preventDefault();
-                document.getElementById('search-input').focus();
-                selectedToolIndex = -1;
-                highlightTool(-1);
+        function getFilteredSoftware() {
+            let list = [...softwareList];
+            if (softwareCategory !== 'all') {
+                list = list.filter(s => s.category === softwareCategory);
             }
-            // Escape to clear search or reset selection
-            if (e.key === 'Escape') {
-                if (document.activeElement === document.getElementById('search-input')) {
-                    document.getElementById('search-input').value = '';
-                    searchQuery = '';
-                    updateURL();
-                    renderTools();
-                    document.getElementById('search-input').blur();
-                }
-                selectedToolIndex = -1;
-                highlightTool(-1);
+            if (searchQuery) {
+                const q = searchQuery.toLowerCase();
+                list = list.filter(s =>
+                    s.name.toLowerCase().includes(q) ||
+                    (s.description || '').toLowerCase().includes(q) ||
+                    (s.tags || []).some(tag => tag.toLowerCase().includes(q)));
             }
-            // Arrow keys for navigation (only when not typing in input)
-            if (!['input', 'textarea'].includes(document.activeElement.tagName.toLowerCase())) {
-                const cards = document.querySelectorAll('.tool-card');
-                if (cards.length > 0) {
-                    if (e.key === 'ArrowDown') {
-                        e.preventDefault();
-                        const nextIndex = selectedToolIndex < cards.length - 1 ? selectedToolIndex + 1 : 0;
-                        highlightTool(nextIndex);
-                    } else if (e.key === 'ArrowUp') {
-                        e.preventDefault();
-                        const prevIndex = selectedToolIndex > 0 ? selectedToolIndex - 1 : cards.length - 1;
-                        highlightTool(prevIndex);
-                    } else if (e.key === 'Enter' && selectedToolIndex >= 0) {
-                        e.preventDefault();
-                        openSelectedTool();
-                    }
-                }
-            }
-        });
+            if (sortOption === 'newest') list.sort((a, b) => b.created_at.localeCompare(a.created_at));
+            else if (sortOption === 'oldest') list.sort((a, b) => a.created_at.localeCompare(b.created_at));
+            else if (sortOption === 'popular') list.sort((a, b) => (b.total_downloads || 0) - (a.total_downloads || 0));
+            return list;
+        }
 
-        // Search functionality
+        function renderSoftware() {
+            const container = document.getElementById('software-grid');
+            const filtered = getFilteredSoftware();
+            document.getElementById('software-count-label').textContent = `共 ${filtered.length} 个软件`;
+
+            if (filtered.length === 0) {
+                container.innerHTML = `<div class="empty-state"><div class="empty-icon">📦</div><p>暂无软件，点击"上传软件"添加</p></div>`;
+                return;
+            }
+
+            container.innerHTML = filtered.map(sw => {
+                const cat = softwareCategories.find(c => c.id === sw.category) || { icon: '📦', name: sw.category };
+                const latestVer = sw.latest_version;
+                const latestSize = sw.latest_size;
+                return `
+                <div class="tool-card" onclick="window.location.href='software/detail.html#${sw.slug}'">
+                    <div class="tool-header">
+                        <div class="tool-icon" style="background: #3b82f620; color: #3b82f6;">
+                            ${cat.icon}
+                        </div>
+                        <div class="tool-info">
+                            <div class="tool-title">${sw.name}</div>
+                            <div class="tool-category">${cat.icon} ${cat.name}</div>
+                            ${latestVer ? `<div class="tool-version">v${latestVer} · ${sw.version_count || 1} 个版本</div>` : ''}
+                            ${latestSize ? `<div class="tool-size">${latestSize}</div>` : ''}
+                        </div>
+                    </div>
+                    ${sw.description ? `<div class="tool-description" title="${sw.description}">${sw.description}</div>` : ''}
+                    <div class="tool-tags">
+                        ${(sw.tags || []).slice(0, 4).map(tag => `<span class="tool-tag">${tag}</span>`).join('') || ''}
+                    </div>
+                    <div class="tool-footer">
+                        <span class="tool-meta-item"><i class="fas fa-download"></i> ${sw.total_downloads || 0} 次下载</span>
+                        <a href="/api/software/${sw.slug}/download" class="download-btn" onclick="event.stopPropagation()">
+                            <i class="fas fa-download"></i> 下载
+                        </a>
+                    </div>
+                </div>`;
+            }).join('');
+        }
+
+        // ── Stats ─────────────────────────────────────────
+        function updateStats() {
+            document.getElementById('stat-tools').textContent = toolsData.tools?.length || 0;
+            document.getElementById('stat-software').textContent = softwareList.length;
+            const totalDownloads = softwareList.reduce((sum, s) => sum + (s.total_downloads || 0), 0);
+            document.getElementById('stat-downloads').textContent = totalDownloads;
+            document.getElementById('tab-tools-count').textContent = toolsData.tools?.length || 0;
+            document.getElementById('tab-software-count').textContent = softwareList.length;
+        }
+
+        // ── Render current view ───────────────────────────
+        function renderCurrentView() {
+            if (currentTab === 'tools') renderTools();
+            else renderSoftware();
+        }
+
+        // ── Search & Sort ─────────────────────────────────
         document.getElementById('search-input').addEventListener('input', (e) => {
             searchQuery = e.target.value.toLowerCase();
-            updateURL();
-            renderTools();
+            renderCurrentView();
         });
 
         document.getElementById('sort-select').addEventListener('change', (e) => {
             sortOption = e.target.value;
-            updateURL();
+            renderCurrentView();
+        });
+
+        // ── Init ──────────────────────────────────────────
+        initTheme();
+        loadTools().then(() => {
+            renderToolsCategories();
             renderTools();
         });
-
-        // Initialize
-        loadURLState();
-        initTheme();
-        loadHomeStats();
-        loadTools().then(() => {
-            renderFavorites();
+        loadSoftware().then(() => {
+            renderSoftwareCategories();
+            renderSoftware();
+            updateStats();
         });
 
+        // Update stats after tools load
+        loadTools().then(() => { updateStats(); });
     </script>
-    <script src="assets/clicks.js" defer></script>
 </body>
 </html>

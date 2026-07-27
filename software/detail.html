@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>软件详情 - 软件工具集</title>
+    <link rel="icon" href="favicon.svg">
+    <link rel="stylesheet" href="assets/vendor/fontawesome/css/all.min.css">
+    <style>
+        :root {
+            --primary: #6366f1;
+            --primary-dark: #4f46e5;
+            --secondary: #8b5cf6;
+            --bg: #0f172a;
+            --bg-card: #1e293b;
+            --bg-hover: #334155;
+            --text: #f1f5f9;
+            --text-muted: #94a3b8;
+            --border: #334155;
+            --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
+            --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.4);
+            --green: #10b981;
+            --amber: #f59e0b;
+            --red: #ef4444;
+            --blue: #3b82f6;
+        }
+
+        [data-theme="light"] {
+            --bg: #ffffff;
+            --bg-card: #f8fafc;
+            --bg-hover: #e2e8f0;
+            --text: #1e293b;
+            --text-muted: #64748b;
+            --border: #e2e8f0;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.6;
+            min-height: 100vh;
+        }
+
+        .container { max-width: 800px; margin: 0 auto; padding: 0 20px; }
+
+        header {
+            background: var(--bg-card);
+            border-bottom: 1px solid var(--border);
+            padding: 16px 0;
+        }
+
+        .header-content {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .back-link {
+            color: var(--text-muted);
+            text-decoration: none;
+            font-size: 14px;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            transition: color 0.2s;
+        }
+
+        .back-link:hover { color: var(--primary); }
+
+        .page-title { font-size: 20px; font-weight: 700; }
+
+        /* Loading */
+        .loading {
+            text-align: center;
+            padding: 80px 20px;
+        }
+
+        .spinner {
+            display: inline-block;
+            width: 32px;
+            height: 32px;
+            border: 3px solid var(--border);
+            border-top-color: var(--primary);
+            border-radius: 50%;
+            animation: spin 0.6s linear infinite;
+        }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* Software Header */
+        .sw-header {
+            padding: 32px 0;
+        }
+
+        .sw-title-row {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            margin-bottom: 12px;
+        }
+
+        .sw-icon {
+            width: 56px;
+            height: 56px;
+            background: #3b82f620;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 28px;
+        }
+
+        .sw-name {
+            font-size: 28px;
+            font-weight: 700;
+        }
+
+        .sw-meta {
+            display: flex;
+            gap: 16px;
+            flex-wrap: wrap;
+            margin-bottom: 16px;
+        }
+
+        .sw-meta-item {
+            font-size: 13px;
+            color: var(--text-muted);
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .sw-meta-item .value {
+            color: var(--text);
+            font-weight: 500;
+        }
+
+        .sw-tags {
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+            margin-bottom: 16px;
+        }
+
+        .sw-tag {
+            font-size: 11px;
+            padding: 3px 10px;
+            background: var(--bg-hover);
+            border-radius: 4px;
+            color: var(--text-muted);
+        }
+
+        .sw-description {
+            color: var(--text-muted);
+            font-size: 14px;
+            line-height: 1.7;
+            padding: 16px;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+        }
+
+        /* Versions */
+        .versions-section {
+            padding: 20px 0 60px;
+        }
+
+        .versions-title {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .version-list {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .version-item {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            padding: 16px 20px;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            transition: all 0.2s;
+        }
+
+        .version-item:hover {
+            border-color: var(--primary);
+        }
+
+        .version-item.archived {
+            opacity: 0.5;
+        }
+
+        .version-item.archived:hover {
+            opacity: 0.7;
+        }
+
+        .version-badge {
+            padding: 3px 10px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 600;
+            flex-shrink: 0;
+            min-width: 60px;
+            text-align: center;
+        }
+
+        .version-badge.active {
+            background: rgba(99, 102, 241, 0.2);
+            color: var(--primary);
+        }
+
+        .version-badge.archived {
+            background: var(--bg-hover);
+            color: var(--text-muted);
+        }
+
+        .version-info {
+            flex: 1;
+        }
+
+        .version-name {
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        .version-detail {
+            font-size: 12px;
+            color: var(--text-muted);
+            display: flex;
+            gap: 12px;
+            margin-top: 2px;
+        }
+
+        .version-actions {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .download-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 7px 16px;
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            color: white;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 500;
+            text-decoration: none;
+            transition: all 0.2s;
+        }
+
+        .download-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 2px 8px rgba(99, 102, 241, 0.4);
+        }
+
+        .download-btn.disabled {
+            opacity: 0.4;
+            pointer-events: none;
+        }
+
+        .status-badge {
+            font-size: 11px;
+            padding: 2px 8px;
+            border-radius: 4px;
+            background: var(--bg-hover);
+            color: var(--text-muted);
+        }
+
+        .error-state {
+            text-align: center;
+            padding: 80px 20px;
+        }
+
+        .error-state i {
+            font-size: 48px;
+            color: var(--text-muted);
+            margin-bottom: 16px;
+        }
+
+        .error-state p {
+            color: var(--text-muted);
+        }
+
+        @media (max-width: 768px) {
+            .container { padding: 0 12px; }
+            .sw-name { font-size: 22px; }
+            .version-item { flex-direction: column; align-items: flex-start; }
+            .version-actions { width: 100%; justify-content: flex-end; }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="container">
+            <div class="header-content">
+                <a href="/" class="back-link">
+                    <i class="fas fa-arrow-left"></i> 返回首页
+                </a>
+                <div class="page-title" id="page-title">软件详情</div>
+            </div>
+        </div>
+    </header>
+
+    <div class="container" id="main-content">
+        <div class="loading">
+            <div class="spinner"></div>
+        </div>
+    </div>
+
+    <script>
+        // Theme
+        document.documentElement.setAttribute('data-theme', localStorage.getItem('theme') || 'dark');
+
+        const categories = {
+            dev: { name: '开发工具', icon: '💻' },
+            design: { name: '设计工具', icon: '🎨' },
+            system: { name: '系统工具', icon: '⚙️' },
+            security: { name: '安全工具', icon: '🔒' },
+            network: { name: '网络工具', icon: '🌐' },
+            office: { name: '办公工具', icon: '📄' },
+            other: { name: '其他', icon: '📦' },
+        };
+
+        function formatDate(d) {
+            if (!d) return '-';
+            return d.replace('T', ' ').split('.')[0];
+        }
+
+        // Get slug from URL hash
+        const slug = window.location.hash.slice(1);
+
+        if (!slug) {
+            document.getElementById('main-content').innerHTML = `
+                <div class="error-state">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <p>无效的软件链接</p>
+                </div>`;
+        } else {
+            loadSoftware(slug);
+        }
+
+        async function loadSoftware(slug) {
+            try {
+                const res = await fetch(`/api/software/${slug}`);
+                const data = await res.json();
+
+                if (data.code === 404) {
+                    document.getElementById('main-content').innerHTML = `
+                        <div class="error-state">
+                            <i class="fas fa-box-open"></i>
+                            <p>软件不存在</p>
+                        </div>`;
+                    return;
+                }
+
+                const sw = data.data;
+                const cat = categories[sw.category] || { icon: '📦', name: sw.category };
+                const latestVer = sw.versions?.find(v => v.status === 'active');
+
+                document.getElementById('page-title').textContent = sw.name;
+                document.getElementById('main-content').innerHTML = `
+                    <div class="sw-header">
+                        <div class="sw-title-row">
+                            <div class="sw-icon">${cat.icon}</div>
+                            <div class="sw-name">${sw.name}</div>
+                        </div>
+                        <div class="sw-meta">
+                            <div class="sw-meta-item">
+                                <i class="fas fa-layer-group"></i>
+                                分类: <span class="value">${cat.name}</span>
+                            </div>
+                            <div class="sw-meta-item">
+                                <i class="fas fa-code-branch"></i>
+                                版本数: <span class="value">${sw.version_count}</span>
+                            </div>
+                            <div class="sw-meta-item">
+                                <i class="fas fa-download"></i>
+                                总下载: <span class="value">${sw.total_downloads || 0}</span>
+                            </div>
+                            <div class="sw-meta-item">
+                                <i class="fas fa-clock"></i>
+                                收录时间: <span class="value">${formatDate(sw.created_at)}</span>
+                            </div>
+                            ${sw.latest_version ? `
+                            <div class="sw-meta-item" style="color: var(--green);">
+                                <i class="fas fa-check-circle"></i>
+                                最新: <span class="value">v${latestVer.version} (${latestVer.file_size_text})</span>
+                            </div>` : ''}
+                        </div>
+                        ${sw.tags && sw.tags.length ? `
+                            <div class="sw-tags">
+                                ${sw.tags.map(t => `<span class="sw-tag">${t}</span>`).join('')}
+                            </div>
+                        ` : ''}
+                        ${sw.description ? `<div class="sw-description">${sw.description}</div>` : ''}
+                    </div>
+                    <div class="versions-section">
+                        <div class="versions-title">
+                            <i class="fas fa-code-branch"></i>
+                            所有版本 <span style="color: var(--text-muted); font-size: 13px;">(${sw.versions.length})</span>
+                        </div>
+                        <div class="version-list">
+                            ${sw.versions.map(v => `
+                                <div class="version-item ${v.status === 'archived' ? 'archived' : ''}">
+                                    <div class="version-badge ${v.status}">
+                                        v${v.version}
+                                    </div>
+                                    <div class="version-info">
+                                        <div class="version-name">${v.original_name}</div>
+                                        <div class="version-detail">
+                                            <span><i class="fas fa-hdd"></i> ${v.file_size_text}</span>
+                                            <span><i class="fas fa-download"></i> ${v.download_count || 0} 次</span>
+                                            ${v.uploader ? `<span><i class="fas fa-user"></i> ${v.uploader}</span>` : ''}
+                                            <span><i class="fas fa-clock"></i> ${formatDate(v.created_at)}</span>
+                                            ${v.notes ? `<span><i class="fas fa-sticky-note"></i> ${v.notes}</span>` : ''}
+                                        </div>
+                                    </div>
+                                    <div class="version-actions">
+                                        ${v.status === 'archived'
+                                            ? `<span class="status-badge">已归档</span>`
+                                            : `<a href="/api/software/${slug}/download/${v.id}" class="download-btn">
+                                                <i class="fas fa-download"></i> 下载
+                                              </a>`
+                                        }
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                `;
+            } catch (err) {
+                document.getElementById('main-content').innerHTML = `
+                    <div class="error-state">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        <p>加载失败: ${err.message}</p>
+                    </div>`;
+            }
+        }
+    </script>
+</body>
+</html>

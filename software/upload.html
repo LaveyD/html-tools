@@ -1,0 +1,654 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>上传软件 - 软件工具集</title>
+    <link rel="icon" href="favicon.svg">
+    <link rel="stylesheet" href="assets/vendor/fontawesome/css/all.min.css">
+    <style>
+        :root {
+            --primary: #6366f1;
+            --primary-dark: #4f46e5;
+            --secondary: #8b5cf6;
+            --bg: #0f172a;
+            --bg-card: #1e293b;
+            --bg-hover: #334155;
+            --text: #f1f5f9;
+            --text-muted: #94a3b8;
+            --border: #334155;
+            --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
+            --green: #10b981;
+            --red: #ef4444;
+        }
+
+        [data-theme="light"] {
+            --bg: #ffffff;
+            --bg-card: #f8fafc;
+            --bg-hover: #e2e8f0;
+            --text: #1e293b;
+            --text-muted: #64748b;
+            --border: #e2e8f0;
+            --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.6;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 720px;
+            margin: 0 auto;
+            padding: 0 20px;
+        }
+
+        /* Header */
+        header {
+            background: var(--bg-card);
+            border-bottom: 1px solid var(--border);
+            padding: 16px 0;
+        }
+
+        .header-content {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .back-link {
+            color: var(--text-muted);
+            text-decoration: none;
+            font-size: 14px;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            transition: color 0.2s;
+        }
+
+        .back-link:hover { color: var(--primary); }
+
+        .page-title {
+            font-size: 20px;
+            font-weight: 700;
+        }
+
+        /* Form */
+        .upload-form {
+            padding: 40px 0;
+        }
+
+        .form-section {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 28px;
+            margin-bottom: 24px;
+        }
+
+        .form-section-title {
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: var(--primary);
+        }
+
+        .form-group {
+            margin-bottom: 18px;
+        }
+
+        .form-group:last-child { margin-bottom: 0; }
+
+        .form-label {
+            display: block;
+            font-size: 13px;
+            font-weight: 500;
+            color: var(--text-muted);
+            margin-bottom: 6px;
+        }
+
+        .form-label .required {
+            color: var(--red);
+            margin-left: 2px;
+        }
+
+        .form-input, .form-select, .form-textarea {
+            width: 100%;
+            padding: 10px 14px;
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            color: var(--text);
+            font-size: 14px;
+            transition: all 0.2s;
+            font-family: inherit;
+        }
+
+        .form-input:focus, .form-select:focus, .form-textarea:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
+        }
+
+        .form-textarea {
+            min-height: 100px;
+            resize: vertical;
+        }
+
+        .form-select {
+            cursor: pointer;
+        }
+
+        /* File Upload Area */
+        .file-drop-zone {
+            border: 2px dashed var(--border);
+            border-radius: 12px;
+            padding: 40px 20px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s;
+            position: relative;
+        }
+
+        .file-drop-zone:hover, .file-drop-zone.dragover {
+            border-color: var(--primary);
+            background: rgba(99, 102, 241, 0.05);
+        }
+
+        .file-drop-zone input[type="file"] {
+            position: absolute;
+            inset: 0;
+            opacity: 0;
+            cursor: pointer;
+        }
+
+        .file-drop-icon {
+            font-size: 40px;
+            color: var(--text-muted);
+            margin-bottom: 12px;
+        }
+
+        .file-drop-text {
+            font-size: 14px;
+            color: var(--text-muted);
+        }
+
+        .file-drop-text strong {
+            color: var(--primary);
+        }
+
+        .file-info {
+            display: none;
+            align-items: center;
+            gap: 12px;
+            padding: 14px;
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            margin-top: 12px;
+        }
+
+        .file-info.show { display: flex; }
+
+        .file-info-icon {
+            font-size: 24px;
+            color: var(--green);
+        }
+
+        .file-info-details {
+            flex: 1;
+        }
+
+        .file-info-name {
+            font-size: 14px;
+            font-weight: 500;
+            word-break: break-all;
+        }
+
+        .file-info-size {
+            font-size: 12px;
+            color: var(--text-muted);
+        }
+
+        .file-info-remove {
+            color: var(--text-muted);
+            cursor: pointer;
+            padding: 4px;
+            transition: color 0.2s;
+        }
+
+        .file-info-remove:hover { color: var(--red); }
+
+        /* Tags */
+        .tags-input-wrapper {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            padding: 8px 12px;
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            min-height: 42px;
+            align-items: center;
+            cursor: text;
+            transition: all 0.2s;
+        }
+
+        .tags-input-wrapper:focus-within {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
+        }
+
+        .tag-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 3px 8px;
+            background: var(--bg-hover);
+            border-radius: 4px;
+            font-size: 12px;
+            color: var(--text);
+        }
+
+        .tag-chip .remove-tag {
+            cursor: pointer;
+            color: var(--text-muted);
+            font-size: 10px;
+        }
+
+        .tag-chip .remove-tag:hover { color: var(--red); }
+
+        .tags-input {
+            border: none;
+            outline: none;
+            background: transparent;
+            color: var(--text);
+            font-size: 13px;
+            flex: 1;
+            min-width: 80px;
+            padding: 2px 0;
+        }
+
+        /* Submit */
+        .submit-section {
+            text-align: center;
+            padding: 20px 0 60px;
+        }
+
+        .btn-submit {
+            padding: 12px 48px;
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-submit:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 16px rgba(99, 102, 241, 0.4);
+        }
+
+        .btn-submit:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        /* Progress */
+        .upload-progress {
+            display: none;
+            margin-top: 16px;
+        }
+
+        .upload-progress.show { display: block; }
+
+        .progress-bar {
+            height: 6px;
+            background: var(--bg-hover);
+            border-radius: 3px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            border-radius: 3px;
+            transition: width 0.3s;
+            width: 0%;
+        }
+
+        .progress-text {
+            text-align: center;
+            font-size: 13px;
+            color: var(--text-muted);
+            margin-top: 8px;
+        }
+
+        /* Alert */
+        .alert {
+            padding: 14px 18px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            display: none;
+            align-items: center;
+            gap: 10px;
+            font-size: 14px;
+        }
+
+        .alert.show { display: flex; }
+
+        .alert-success {
+            background: rgba(16, 185, 129, 0.1);
+            border: 1px solid rgba(16, 185, 129, 0.3);
+            color: var(--green);
+        }
+
+        .alert-error {
+            background: rgba(239, 68, 68, 0.1);
+            border: 1px solid rgba(239, 68, 68, 0.3);
+            color: var(--red);
+        }
+
+        .spinner {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid currentColor;
+            border-right-color: transparent;
+            border-radius: 50%;
+            animation: spin 0.6s linear infinite;
+        }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        @media (max-width: 768px) {
+            .container { padding: 0 12px; }
+            .form-section { padding: 20px; }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="container">
+            <div class="header-content">
+                <a href="/" class="back-link">
+                    <i class="fas fa-arrow-left"></i> 返回首页
+                </a>
+                <div class="page-title"><i class="fas fa-cloud-upload-alt"></i> 上传软件</div>
+            </div>
+        </div>
+    </header>
+
+    <div class="container">
+        <div class="upload-form">
+            <div id="alert" class="alert">
+                <i class="fas fa-info-circle"></i>
+                <span id="alert-text"></span>
+            </div>
+
+            <form id="upload-form" enctype="multipart/form-data">
+                <!-- File Upload -->
+                <div class="form-section">
+                    <div class="form-section-title">
+                        <i class="fas fa-file-upload"></i> 选择文件
+                    </div>
+                    <div class="form-group">
+                        <div class="file-drop-zone" id="drop-zone">
+                            <input type="file" id="file-input" name="file" required>
+                            <div class="file-drop-icon"><i class="fas fa-cloud-upload-alt"></i></div>
+                            <div class="file-drop-text">
+                                拖拽文件到这里 或 <strong>点击选择</strong>
+                            </div>
+                        </div>
+                        <div class="file-info" id="file-info">
+                            <div class="file-info-icon"><i class="fas fa-file"></i></div>
+                            <div class="file-info-details">
+                                <div class="file-info-name" id="file-name"></div>
+                                <div class="file-info-size" id="file-size"></div>
+                            </div>
+                            <div class="file-info-remove" onclick="removeFile()">
+                                <i class="fas fa-times"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Info -->
+                <div class="form-section">
+                    <div class="form-section-title">
+                        <i class="fas fa-info-circle"></i> 基本信息
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">软件名称 <span class="required">*</span></label>
+                        <input type="text" class="form-input" id="name" name="name" required placeholder="例如：VS Code, Chrome, Python">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">分类 <span class="required">*</span></label>
+                        <select class="form-select" id="category" name="category" required>
+                            <option value="">请选择分类</option>
+                            <option value="dev">💻 开发工具</option>
+                            <option value="design">🎨 设计工具</option>
+                            <option value="system">⚙️ 系统工具</option>
+                            <option value="security">🔒 安全工具</option>
+                            <option value="network">🌐 网络工具</option>
+                            <option value="office">📄 办公工具</option>
+                            <option value="other">📦 其他</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">版本号</label>
+                        <input type="text" class="form-input" id="version" name="version" placeholder="例如：1.85.0">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">描述</label>
+                        <textarea class="form-textarea" id="description" name="description" placeholder="简要描述该软件的功能和用途..."></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">上传者</label>
+                        <input type="text" class="form-input" id="uploader" name="uploader" placeholder="你的名字或昵称">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">标签（回车添加）</label>
+                        <div class="tags-input-wrapper" id="tags-wrapper">
+                            <input type="text" class="tags-input" id="tags-input" placeholder="输入标签后回车...">
+                        </div>
+                        <input type="hidden" id="tags" name="tags" value="[]">
+                    </div>
+                </div>
+
+                <div class="submit-section">
+                    <button type="submit" class="btn-submit" id="submit-btn">
+                        <i class="fas fa-upload"></i> 上传软件
+                    </button>
+                    <div class="upload-progress" id="upload-progress">
+                        <div class="progress-bar">
+                            <div class="progress-fill" id="progress-fill"></div>
+                        </div>
+                        <div class="progress-text" id="progress-text">上传中...</div>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        // Theme
+        const saved = localStorage.getItem('theme') || 'dark';
+        document.documentElement.setAttribute('data-theme', saved);
+
+        // Tags
+        let tags = [];
+        const tagsInput = document.getElementById('tags-input');
+        const tagsWrapper = document.getElementById('tags-wrapper');
+
+        tagsInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                const val = e.target.value.trim();
+                if (val && !tags.includes(val)) {
+                    tags.push(val);
+                    renderTags();
+                    e.target.value = '';
+                }
+            }
+        });
+
+        function renderTags() {
+            const chips = tagsWrapper.querySelectorAll('.tag-chip');
+            chips.forEach(c => c.remove());
+            tags.forEach((tag, i) => {
+                const chip = document.createElement('span');
+                chip.className = 'tag-chip';
+                chip.innerHTML = `${tag} <span class="remove-tag" onclick="removeTag(${i})">&times;</span>`;
+                tagsWrapper.insertBefore(chip, tagsInput);
+            });
+            document.getElementById('tags').value = JSON.stringify(tags);
+        }
+
+        function removeTag(i) {
+            tags.splice(i, 1);
+            renderTags();
+        }
+
+        // File handling
+        const fileInput = document.getElementById('file-input');
+        const dropZone = document.getElementById('drop-zone');
+        const fileInfo = document.getElementById('file-info');
+
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.classList.add('dragover');
+        });
+
+        dropZone.addEventListener('dragleave', () => {
+            dropZone.classList.remove('dragover');
+        });
+
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('dragover');
+            if (e.dataTransfer.files.length) {
+                fileInput.files = e.dataTransfer.files;
+                showFileInfo(e.dataTransfer.files[0]);
+            }
+        });
+
+        fileInput.addEventListener('change', () => {
+            if (fileInput.files.length) {
+                showFileInfo(fileInput.files[0]);
+            }
+        });
+
+        function showFileInfo(file) {
+            document.getElementById('file-name').textContent = file.name;
+            document.getElementById('file-size').textContent = formatSize(file.size);
+            fileInfo.classList.add('show');
+            // Auto-fill name if empty
+            if (!document.getElementById('name').value) {
+                const name = file.name.replace(/\.[^.]+$/, '').replace(/[-_]/g, ' ');
+                document.getElementById('name').value = name;
+            }
+        }
+
+        function removeFile() {
+            fileInput.value = '';
+            fileInfo.classList.remove('show');
+        }
+
+        function formatSize(bytes) {
+            for (const unit of ['B', 'KB', 'MB', 'GB', 'TB']) {
+                if (bytes < 1024) return `${bytes.toFixed(1)} ${unit}`;
+                bytes /= 1024;
+            }
+            return `${bytes.toFixed(1)} PB`;
+        }
+
+        // Form submit
+        const form = document.getElementById('upload-form');
+        const submitBtn = document.getElementById('submit-btn');
+        const progressDiv = document.getElementById('upload-progress');
+        const progressFill = document.getElementById('progress-fill');
+        const progressText = document.getElementById('progress-text');
+
+        function showAlert(type, msg) {
+            const alert = document.getElementById('alert');
+            alert.className = `alert alert-${type} show`;
+            alert.querySelector('#alert-text').textContent = msg;
+            setTimeout(() => alert.classList.remove('show'), 8000);
+        }
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const fd = new FormData(form);
+            if (!fd.get('file') || !fd.get('file').name) {
+                showAlert('error', '请选择要上传的文件');
+                return;
+            }
+            if (!fd.get('name')) {
+                showAlert('error', '请输入软件名称');
+                return;
+            }
+            if (!fd.get('category')) {
+                showAlert('error', '请选择分类');
+                return;
+            }
+
+            // Set tags
+            fd.set('tags', JSON.stringify(tags));
+
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<span class="spinner"></span> 上传中...';
+            progressDiv.classList.add('show');
+
+            try {
+                const xhr = new XMLHttpRequest();
+
+                xhr.upload.addEventListener('progress', (e) => {
+                    if (e.lengthComputable) {
+                        const pct = Math.round((e.loaded / e.total) * 100);
+                        progressFill.style.width = pct + '%';
+                        progressText.textContent = `上传中... ${formatSize(e.loaded)} / ${formatSize(e.total)} (${pct}%)`;
+                    }
+                });
+
+                const result = await new Promise((resolve, reject) => {
+                    xhr.onload = () => resolve(JSON.parse(xhr.responseText));
+                    xhr.onerror = () => reject(new Error('网络错误'));
+                    xhr.open('POST', '/api/software/upload');
+                    xhr.send(fd);
+                });
+
+                if (result.code === 0) {
+                    showAlert('success', `上传成功！大小：${result.data.size_text}`);
+                    setTimeout(() => window.location.href = '/', 2000);
+                } else {
+                    showAlert('error', result.message || '上传失败');
+                }
+            } catch (err) {
+                showAlert('error', err.message || '上传失败');
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = '<i class="fas fa-upload"></i> 上传软件';
+                progressDiv.classList.remove('show');
+                progressFill.style.width = '0%';
+            }
+        });
+    </script>
+</body>
+</html>

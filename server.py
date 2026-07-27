@@ -1,0 +1,904 @@
+"""
+软件工具集 - 后端 API
+Flask + SQLite: 软件上传/下载（多版本）、需求收集、版本管理、管理员认证
+"""
+import json
+import uuid
+import hashlib
+import sqlite3
+from datetime import datetime, timedelta
+from pathlib import Path
+from functools import wraps
+from flask import Flask, request, jsonify, send_file, redirect
+from werkzeug.utils import secure_filename
+
+app = Flask(__name__)
+
+BASE_DIR = Path(__file__).parent.resolve()
+DB_PATH = BASE_DIR / 'software.db'
+UPLOAD_DIR = BASE_DIR / 'software_files'
+UPLOAD_DIR.mkdir(exist_ok=True)
+
+# ─── Admin Auth ────────────────────────────────────────────
+# Admin password hash (sha256 of the password)
+# Default password: admin123 — change this!
+ADMIN_TOKENS = {}  # token -> expiry
+
+
+def init_admin():
+    """Load admin config from file"""
+    config_path = BASE_DIR / '.admin_config'
+    if not config_path.exists():
+        # Create default: password = admin123
+        pw = 'admin123'
+        config_path.write_text(json.dumps({
+            'password_hash': hashlib.sha256(pw.encode()).hexdigest()
+        }, indent=2))
+    with open(config_path) as f:
+        cfg = json.load(f)
+    return cfg.get('password_hash', '')
+
+
+ADMIN_PASSWORD_HASH = init_admin()
+
+
+def require_admin(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        token = (
+            request.headers.get('X-Admin-Token')
+            or request.args.get('token')
+            or request.cookies.get('admin_token')
+        )
+        if not token or token not in ADMIN_TOKENS:
+            return jsonify({'code': 401, 'message': '未授权'}), 401
+        # Check expiry
+        if datetime.now() > ADMIN_TOKENS[token]:
+            ADMIN_TOKENS.pop(token, None)
+            return jsonify({'code': 401, 'message': 'Token 已过期'}), 401
+        return f(*args, **kwargs)
+    return decorated
+
+
+@app.route('/api/admin/login', methods=['POST'])
+def admin_login():
+    data = request.get_json(force=True) if request.is_json else {}
+    password = data.get('password', '')
+    pw_hash = hashlib.sha256(password.encode()).hexdigest()
+    if pw_hash != ADMIN_PASSWORD_HASH:
+        return jsonify({'code': 403, 'message': '密码错误'}), 403
+    token = uuid.uuid4().hex
+    ADMIN_TOKENS[token] = datetime.now() + timedelta(hours=24)
+    return jsonify({'code': 0, 'data': {'token': token}})
+
+
+@app.route('/api/admin/logout', methods=['POST'])
+def admin_logout():
+    token = (
+        request.headers.get('X-Admin-Token')
+        or request.args.get('token')
+        or request.cookies.get('admin_token')
+    )
+    if token:
+        ADMIN_TOKENS.pop(token, None)
+    return jsonify({'code': 0, 'message': '已退出'})
+
+
+# ─── DB helpers ────────────────────────────────────────────
+
+def get_db():
+    conn = sqlite3.connect(str(DB_PATH))
+    conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA foreign_keys=ON")
+    return conn
+
+
+def init_db():
+    conn = get_db()
+    conn.executescript("""
+        -- 软件条目表
+        CREATE TABLE IF NOT EXISTS software (
+            id TEXT PRIMARY KEY,
+            slug TEXT UNIQUE NOT NULL,
+            name TEXT NOT NULL,
+            category TEXT NOT NULL,
+            description TEXT,
+            tags TEXT DEFAULT '[]',
+            status TEXT DEFAULT 'active',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+
+        -- 版本文件表
+        CREATE TABLE IF NOT EXISTS software_versions (
+            id TEXT PRIMARY KEY,
+            software_id TEXT NOT NULL,
+            version TEXT NOT NULL,
+            filename TEXT NOT NULL,
+            original_name TEXT NOT NULL,
+            file_size INTEGER DEFAULT 0,
+            download_count INTEGER DEFAULT 0,
+            uploader TEXT,
+            status TEXT DEFAULT 'active',
+            notes TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (software_id) REFERENCES software(id) ON DELETE CASCADE,
+            UNIQUE(software_id, version, status)
+        );
+
+        -- 需求表
+        CREATE TABLE IF NOT EXISTS requests (
+            id TEXT PRIMARY KEY,
+            type TEXT NOT NULL DEFAULT 'software',
+            title TEXT NOT NULL,
+            description TEXT,
+            submitter TEXT,
+            status TEXT DEFAULT 'pending',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_software_category ON software(category);
+        CREATE INDEX IF NOT EXISTS idx_software_status ON software(status);
+        CREATE INDEX IF NOT EXISTS idx_software_created ON software(created_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_versions_software ON software_versions(software_id);
+        CREATE INDEX IF NOT EXISTS idx_versions_status ON software_versions(status);
+        CREATE INDEX IF NOT EXISTS idx_requests_status ON requests(status);
+
+        -- Migrate old data if exists (from single-table schema)
+        CREATE TABLE IF NOT EXISTS _migrate_check (id INTEGER);
+    """)
+    conn.commit()
+
+    # Auto-migrate: if old 'software' table had 'filename' column, it's the v1 schema
+    try:
+        old_cols = [r['name'] for r in conn.execute(
+            "PRAGMA table_info(software)"
+        ).fetchall() if r['name'] == 'filename']
+        if old_cols:
+            # Old schema has 'filename' — migrate to new schema
+            migrate_v1_to_v2(conn)
+    except Exception:
+        pass
+
+    conn.close()
+
+
+def migrate_v1_to_v2(conn):
+    """Migrate from single-table schema to software + versions schema"""
+    print("[Migrate] Old schema detected, migrating to v2...")
+
+    # Create new tables
+    conn.execute("DROP TABLE IF EXISTS software_new")
+    conn.execute("DROP TABLE IF EXISTS software_versions_new")
+
+    conn.executescript("""
+        CREATE TABLE software_new (
+            id TEXT PRIMARY KEY,
+            slug TEXT UNIQUE NOT NULL,
+            name TEXT NOT NULL,
+            category TEXT NOT NULL,
+            description TEXT,
+            tags TEXT DEFAULT '[]',
+            status TEXT DEFAULT 'active',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE TABLE software_versions_new (
+            id TEXT PRIMARY KEY,
+            software_id TEXT NOT NULL,
+            version TEXT NOT NULL,
+            filename TEXT NOT NULL,
+            original_name TEXT NOT NULL,
+            file_size INTEGER DEFAULT 0,
+            download_count INTEGER DEFAULT 0,
+            uploader TEXT,
+            status TEXT DEFAULT 'active',
+            notes TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (software_id) REFERENCES software_new(id) ON DELETE CASCADE
+        );
+    """)
+
+    # Read old data
+    old_rows = conn.execute("SELECT * FROM software").fetchall()
+    for row in old_rows:
+        sw_id = row['id']
+        conn.execute(
+            "INSERT INTO software_new (id, slug, name, category, description, tags, created_at, updated_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            (sw_id, row['slug'], row['name'], row['category'],
+             row['description'], row['tags'] or '[]',
+             row['created_at'], row['updated_at'])
+        )
+        ver_id = uuid.uuid4().hex
+        conn.execute(
+            "INSERT INTO software_versions_new (id, software_id, version, filename, original_name, file_size, download_count, uploader, created_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (ver_id, sw_id, row['version'] or '1.0', row['filename'],
+             row['original_name'], row['file_size'], row['download_count'],
+             row['uploader'], row['created_at'])
+        )
+
+    # Replace tables
+    conn.execute("DROP TABLE software")
+    conn.execute("ALTER TABLE software_new RENAME TO software")
+    conn.execute("DROP TABLE software_versions")
+    conn.execute("ALTER TABLE software_versions_new RENAME TO software_versions")
+
+    # Recreate indexes
+    conn.executescript("""
+        CREATE INDEX idx_software_category ON software(category);
+        CREATE INDEX idx_software_status ON software(status);
+        CREATE INDEX idx_software_created ON software(created_at DESC);
+        CREATE INDEX idx_versions_software ON software_versions(software_id);
+        CREATE INDEX idx_versions_status ON software_versions(status);
+    """)
+
+    conn.commit()
+    print(f"[Migrate] Done — {len(old_rows)} software entries migrated")
+
+
+# ─── Helpers ───────────────────────────────────────────────
+
+def make_slug(name):
+    """Generate URL-friendly slug from name"""
+    slug = ""
+    for ch in name:
+        if ch.isalnum():
+            slug += ch.lower()
+        else:
+            slug += "-"
+    return slug.strip("-") or uuid.uuid4().hex[:8]
+
+
+def format_size(size_bytes):
+    for unit in ['B', 'KB', 'MB', 'GB', 'TB']:
+        if size_bytes < 1024:
+            return f"{size_bytes:.1f} {unit}"
+        size_bytes /= 1024
+    return f"{size_bytes:.1f} PB"
+
+
+def software_to_dict(row):
+    return {
+        'id': row['id'],
+        'slug': row['slug'],
+        'name': row['name'],
+        'category': row['category'],
+        'description': row['description'],
+        'tags': json.loads(row['tags']) if row['tags'] else [],
+        'status': row['status'],
+        'created_at': row['created_at'],
+        'updated_at': row['updated_at'],
+    }
+
+
+def version_to_dict(row):
+    return {
+        'id': row['id'],
+        'version': row['version'],
+        'filename': row['filename'],
+        'original_name': row['original_name'],
+        'file_size': row['file_size'],
+        'file_size_text': format_size(row['file_size']),
+        'download_count': row['download_count'],
+        'uploader': row['uploader'],
+        'status': row['status'],
+        'notes': row['notes'],
+        'created_at': row['created_at'],
+    }
+
+
+# ─── Software List ─────────────────────────────────────────
+
+@app.route('/api/software/list', methods=['GET'])
+def list_software():
+    category = request.args.get('category', '').strip()
+    q = request.args.get('q', '').strip()
+
+    conn = get_db()
+    if category and q:
+        rows = conn.execute(
+            "SELECT * FROM software WHERE status='active' AND category=? AND (name LIKE ? OR description LIKE ?) ORDER BY updated_at DESC",
+            (category, f'%{q}%', f'%{q}%')
+        ).fetchall()
+    elif category:
+        rows = conn.execute(
+            "SELECT * FROM software WHERE status='active' AND category=? ORDER BY updated_at DESC",
+            (category,)
+        ).fetchall()
+    elif q:
+        rows = conn.execute(
+            "SELECT * FROM software WHERE status='active' AND (name LIKE ? OR description LIKE ?) ORDER BY updated_at DESC",
+            (f'%{q}%', f'%{q}%')
+        ).fetchall()
+    else:
+        rows = conn.execute(
+            "SELECT * FROM software WHERE status='active' ORDER BY updated_at DESC"
+        ).fetchall()
+
+    result = []
+    for sw in rows:
+        sw_dict = software_to_dict(sw)
+
+        # Get latest active version
+        ver = conn.execute(
+            "SELECT * FROM software_versions WHERE software_id=? AND status='active' ORDER BY created_at DESC LIMIT 1",
+            (sw['id'],)
+        ).fetchone()
+
+        # Get total version count
+        ver_count = conn.execute(
+            "SELECT COUNT(*) FROM software_versions WHERE software_id=?",
+            (sw['id'],)
+        ).fetchone()[0]
+
+        sw_dict['versions'] = [version_to_dict(ver)] if ver else []
+        sw_dict['version_count'] = ver_count
+        sw_dict['latest_version'] = ver['version'] if ver else None
+        sw_dict['latest_size'] = format_size(ver['file_size']) if ver else ''
+        sw_dict['total_downloads'] = conn.execute(
+            "SELECT COALESCE(SUM(download_count),0) FROM software_versions WHERE software_id=?",
+            (sw['id'],)
+        ).fetchone()[0]
+
+        result.append(sw_dict)
+
+    conn.close()
+    return jsonify({'code': 0, 'data': result, 'total': len(result)})
+
+
+# ─── Software Detail (with all versions) ──────────────────
+
+@app.route('/api/software/<slug>', methods=['GET'])
+def get_software(slug):
+    conn = get_db()
+    sw = conn.execute("SELECT * FROM software WHERE slug=?", (slug,)).fetchone()
+    if not sw:
+        conn.close()
+        return jsonify({'code': 404, 'message': '软件不存在'}), 404
+
+    sw_dict = software_to_dict(sw)
+
+    # All versions (active first, then archived)
+    versions = conn.execute(
+        "SELECT * FROM software_versions WHERE software_id=? ORDER BY "
+        "CASE status WHEN 'active' THEN 0 ELSE 1 END, created_at DESC",
+        (sw['id'],)
+    ).fetchall()
+
+    sw_dict['versions'] = [version_to_dict(v) for v in versions]
+    sw_dict['version_count'] = len(versions)
+    sw_dict['total_downloads'] = conn.execute(
+        "SELECT COALESCE(SUM(download_count),0) FROM software_versions WHERE software_id=?",
+        (sw['id'],)
+    ).fetchone()[0]
+
+    conn.close()
+    return jsonify({'code': 0, 'data': sw_dict})
+
+
+# ─── Upload ────────────────────────────────────────────────
+
+@app.route('/api/software/upload', methods=['POST'])
+@require_admin
+def upload_software():
+    name = request.form.get('name', '').strip()
+    category = request.form.get('category', '').strip()
+    version = request.form.get('version', '').strip() or '1.0'
+    description = request.form.get('description', '').strip()
+    uploader = request.form.get('uploader', '').strip()
+    tags_str = request.form.get('tags', '[]').strip()
+
+    if not name:
+        return jsonify({'code': 400, 'message': '软件名称不能为空'}), 400
+    if not category:
+        return jsonify({'code': 400, 'message': '请选择分类'}), 400
+
+    file = request.files.get('file')
+    if not file or not file.filename:
+        return jsonify({'code': 400, 'message': '请上传文件'}), 400
+
+    try:
+        tags = json.loads(tags_str)
+    except Exception:
+        tags = [t.strip() for t in tags_str.split(',') if t.strip()]
+
+    original_name = secure_filename(file.filename) or 'unknown'
+    slug = make_slug(name)
+    conn = get_db()
+
+    # Check if software already exists by slug
+    existing = conn.execute(
+        "SELECT * FROM software WHERE slug=?", (slug,)
+    ).fetchone()
+
+    if existing:
+        # Update existing software info
+        conn.execute(
+            "UPDATE software SET name=?, category=?, description=?, tags=?, updated_at=? WHERE id=?",
+            (name, category, description, json.dumps(tags, ensure_ascii=False),
+             datetime.now().isoformat(), existing['id'])
+        )
+        sw_id = existing['id']
+        is_new_software = False
+    else:
+        # Create new software
+        sw_id = uuid.uuid4().hex
+        conn.execute(
+            "INSERT INTO software (id, slug, name, category, description, tags) VALUES (?, ?, ?, ?, ?, ?)",
+            (sw_id, slug, name, category, description,
+             json.dumps(tags, ensure_ascii=False))
+        )
+        is_new_software = True
+
+    # Save file
+    uid = uuid.uuid4().hex
+    safe_filename = f"{uid}_{original_name}"
+    file_path = UPLOAD_DIR / safe_filename
+    file.save(str(file_path))
+    file_size = file_path.stat().st_size
+
+    # Save version
+    ver_id = uuid.uuid4().hex
+    try:
+        conn.execute(
+            "INSERT INTO software_versions (id, software_id, version, filename, original_name, file_size, uploader) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (ver_id, sw_id, version, safe_filename, original_name, file_size, uploader)
+        )
+    except sqlite3.IntegrityError:
+        # Same version already active — update the existing version
+        old_ver = conn.execute(
+            "SELECT * FROM software_versions WHERE software_id=? AND version=? AND status='active'",
+            (sw_id, version)
+        ).fetchone()
+
+        # Archive the old one
+        if old_ver:
+            old_file = UPLOAD_DIR / old_ver['filename']
+            if old_file.exists():
+                old_file.unlink()
+            conn.execute(
+                "UPDATE software_versions SET status='archived' WHERE id=?",
+                (old_ver['id'],)
+            )
+
+        conn.execute(
+            "INSERT INTO software_versions (id, software_id, version, filename, original_name, file_size, uploader) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (ver_id, sw_id, version, safe_filename, original_name, file_size, uploader)
+        )
+
+    conn.commit()
+    conn.close()
+
+    return jsonify({
+        'code': 0,
+        'message': '上传成功' if is_new_software else '新版本上传成功',
+        'data': {
+            'slug': slug,
+            'version': version,
+            'size': file_size,
+            'size_text': format_size(file_size),
+            'is_new_software': is_new_software,
+        }
+    })
+
+
+# ─── Download ──────────────────────────────────────────────
+
+@app.route('/api/software/<slug>/download', methods=['GET'])
+@app.route('/api/software/<slug>/download/<version_id>', methods=['GET'])
+def download_software(slug, version_id=None):
+    conn = get_db()
+    sw = conn.execute("SELECT * FROM software WHERE slug=?", (slug,)).fetchone()
+    if not sw:
+        conn.close()
+        return jsonify({'code': 404, 'message': '软件不存在'}), 404
+
+    if version_id:
+        ver = conn.execute("SELECT * FROM software_versions WHERE id=?", (version_id,)).fetchone()
+    else:
+        # Default: latest active version
+        ver = conn.execute(
+            "SELECT * FROM software_versions WHERE software_id=? AND status='active' ORDER BY created_at DESC LIMIT 1",
+            (sw['id'],)
+        ).fetchone()
+
+    conn.close()
+
+    if not ver:
+        return jsonify({'code': 404, 'message': '版本不存在'}), 404
+
+    # Increment download count
+    conn = get_db()
+    conn.execute(
+        "UPDATE software_versions SET download_count = download_count + 1 WHERE id=?",
+        (ver['id'],)
+    )
+    conn.commit()
+    conn.close()
+
+    filepath = UPLOAD_DIR / ver['filename']
+    if not filepath.exists():
+        return jsonify({'code': 404, 'message': '文件已不存在'}), 404
+
+    return send_file(str(filepath), as_attachment=True, download_name=ver['original_name'])
+
+
+# ─── Version Management ────────────────────────────────────
+
+@app.route('/api/software/<slug>/version/<version_id>', methods=['PATCH'])
+@require_admin
+def update_version(slug, version_id):
+    conn = get_db()
+    sw = conn.execute("SELECT * FROM software WHERE slug=?", (slug,)).fetchone()
+    if not sw:
+        conn.close()
+        return jsonify({'code': 404, 'message': '软件不存在'}), 404
+
+    ver = conn.execute(
+        "SELECT * FROM software_versions WHERE id=? AND software_id=?",
+        (version_id, sw['id'])
+    ).fetchone()
+    if not ver:
+        conn.close()
+        return jsonify({'code': 404, 'message': '版本不存在'}), 404
+
+    data = request.get_json(force=True) if request.is_json else {}
+    actions = data.get('actions', [])
+
+    for action in actions:
+        if action == 'archive':
+            conn.execute(
+                "UPDATE software_versions SET status='archived' WHERE id=?",
+                (version_id,)
+            )
+        elif action == 'activate':
+            conn.execute(
+                "UPDATE software_versions SET status='active' WHERE id=?",
+                (version_id,)
+            )
+        elif action == 'delete':
+            # Soft delete + remove file
+            fpath = UPLOAD_DIR / ver['filename']
+            if fpath.exists():
+                fpath.unlink()
+            conn.execute("DELETE FROM software_versions WHERE id=?", (version_id,))
+
+    conn.commit()
+    conn.close()
+    return jsonify({'code': 0, 'message': '操作成功'})
+
+
+@app.route('/api/software/<slug>', methods=['PATCH'])
+@require_admin
+def update_software(slug):
+    conn = get_db()
+    sw = conn.execute("SELECT * FROM software WHERE slug=?", (slug,)).fetchone()
+    if not sw:
+        conn.close()
+        return jsonify({'code': 404, 'message': '软件不存在'}), 404
+
+    data = request.get_json(force=True) if request.is_json else {}
+    actions = data.get('actions', [])
+
+    for action in actions:
+        if action == 'archive':
+            conn.execute("UPDATE software SET status='archived' WHERE id=?", (sw['id'],))
+        elif action == 'activate':
+            conn.execute("UPDATE software SET status='active' WHERE id=?", (sw['id'],))
+        elif action == 'delete':
+            # Delete all versions and files
+            versions = conn.execute(
+                "SELECT * FROM software_versions WHERE software_id=?",
+                (sw['id'],)
+            ).fetchall()
+            for v in versions:
+                fpath = UPLOAD_DIR / v['filename']
+                if fpath.exists():
+                    fpath.unlink()
+            conn.execute("DELETE FROM software_versions WHERE software_id=?", (sw['id'],))
+            conn.execute("DELETE FROM software WHERE id=?", (sw['id'],))
+
+    # Update fields
+    if 'name' in data:
+        conn.execute("UPDATE software SET name=? WHERE id=?", (data['name'], sw['id']))
+    if 'category' in data:
+        conn.execute("UPDATE software SET category=? WHERE id=?", (data['category'], sw['id']))
+    if 'description' in data:
+        conn.execute("UPDATE software SET description=? WHERE id=?", (data['description'], sw['id']))
+
+    conn.execute("UPDATE software SET updated_at=? WHERE id=?", (datetime.now().isoformat(), sw['id']))
+    conn.commit()
+    conn.close()
+    return jsonify({'code': 0, 'message': '操作成功'})
+
+
+# ─── Search ────────────────────────────────────────────────
+
+@app.route('/api/software/search', methods=['GET'])
+def search_software():
+    q = request.args.get('q', '').strip().lower()
+    category = request.args.get('category', '').strip()
+    conn = get_db()
+
+    conditions = ["status='active'"]
+    params = []
+    if q:
+        conditions.append("(name LIKE ? OR description LIKE ? OR tags LIKE ?)")
+        params.extend([f'%{q}%', f'%{q}%', f'%{q}%'])
+    if category:
+        conditions.append("category=?")
+        params.append(category)
+
+    where = " AND ".join(conditions)
+    rows = conn.execute(f"SELECT * FROM software WHERE {where} ORDER BY updated_at DESC", params).fetchall()
+
+    result = []
+    for sw in rows:
+        sw_dict = software_to_dict(sw)
+        ver = conn.execute(
+            "SELECT * FROM software_versions WHERE software_id=? AND status='active' ORDER BY created_at DESC LIMIT 1",
+            (sw['id'],)
+        ).fetchone()
+        sw_dict['latest_version'] = version_to_dict(ver) if ver else None
+        sw_dict['version_count'] = conn.execute(
+            "SELECT COUNT(*) FROM software_versions WHERE software_id=?",
+            (sw['id'],)
+        ).fetchone()[0]
+        result.append(sw_dict)
+
+    conn.close()
+
+    return jsonify({'code': 0, 'data': result, 'total': len(result)})
+
+
+# ─── Request APIs ──────────────────────────────────────────
+
+@app.route('/api/request/list', methods=['GET'])
+def list_requests():
+    conn = get_db()
+    rows = conn.execute("SELECT * FROM requests ORDER BY created_at DESC").fetchall()
+    conn.close()
+    return jsonify({
+        'code': 0,
+        'data': [{'id': r['id'], 'type': r['type'], 'title': r['title'],
+                   'description': r['description'], 'submitter': r['submitter'],
+                   'status': r['status'], 'created_at': r['created_at']} for r in rows]
+    })
+
+
+@app.route('/api/request/submit', methods=['POST'])
+def submit_request():
+    data = request.get_json(force=True) if request.is_json else {}
+    if not data.get('title'):
+        return jsonify({'code': 400, 'message': '标题不能为空'}), 400
+
+    uid = uuid.uuid4().hex
+    conn = get_db()
+    conn.execute(
+        "INSERT INTO requests (id, type, title, description, submitter) VALUES (?, ?, ?, ?, ?)",
+        (uid, data.get('type', 'software'), data['title'],
+         data.get('description', ''), data.get('submitter', ''))
+    )
+    conn.commit()
+    conn.close()
+
+    req_path = BASE_DIR / 'requests.json'
+    reqs = []
+    if req_path.exists():
+        try:
+            with open(req_path) as f:
+                reqs = json.load(f)
+        except Exception:
+            reqs = []
+    reqs.insert(0, {
+        'id': uid, 'type': data.get('type', 'software'), 'title': data['title'],
+        'description': data.get('description', ''), 'submitter': data.get('submitter', ''),
+        'status': 'pending', 'created_at': datetime.now().isoformat()
+    })
+    with open(req_path, 'w', encoding='utf-8') as f:
+        json.dump(reqs, f, ensure_ascii=False, indent=2)
+
+    return jsonify({'code': 0, 'message': '提交成功', 'data': {'id': uid}})
+
+
+# ─── Admin APIs ────────────────────────────────────────────
+
+@app.route('/api/admin/stats', methods=['GET'])
+@require_admin
+def admin_stats():
+    conn = get_db()
+    sw_total = conn.execute("SELECT COUNT(*) FROM software").fetchone()[0]
+    sw_active = conn.execute("SELECT COUNT(*) FROM software WHERE status='active'").fetchone()[0]
+    sw_archived = conn.execute("SELECT COUNT(*) FROM software WHERE status='archived'").fetchone()[0]
+    ver_total = conn.execute("SELECT COUNT(*) FROM software_versions").fetchone()[0]
+    total_downloads = conn.execute("SELECT COALESCE(SUM(download_count),0) FROM software_versions").fetchone()[0]
+    total_disk = conn.execute("SELECT COALESCE(SUM(file_size),0) FROM software_versions").fetchone()[0]
+    req_total = conn.execute("SELECT COUNT(*) FROM requests").fetchone()[0]
+    req_pending = conn.execute("SELECT COUNT(*) FROM requests WHERE status='pending'").fetchone()[0]
+    conn.close()
+    return jsonify({
+        'code': 0,
+        'data': {
+            'software_total': sw_total,
+            'software_active': sw_active,
+            'software_archived': sw_archived,
+            'version_total': ver_total,
+            'total_downloads': total_downloads,
+            'total_disk': format_size(total_disk),
+            'request_total': req_total,
+            'request_pending': req_pending,
+        }
+    })
+
+
+@app.route('/api/admin/software', methods=['GET'])
+@require_admin
+def admin_software_list():
+    """Full software list including archived"""
+    status = request.args.get('status', '').strip()
+    q = request.args.get('q', '').strip()
+    page = int(request.args.get('page', 1))
+    per_page = int(request.args.get('per_page', 20))
+    offset = (page - 1) * per_page
+
+    conn = get_db()
+    conditions = []
+    params = []
+    if status:
+        conditions.append("status=?")
+        params.append(status)
+    if q:
+        conditions.append("(name LIKE ? OR description LIKE ?)")
+        params.extend([f'%{q}%', f'%{q}%'])
+    where = (" AND ".join(conditions)) if conditions else "1=1"
+
+    total = conn.execute(f"SELECT COUNT(*) FROM software WHERE {where}", params).fetchone()[0]
+    rows = conn.execute(
+        f"SELECT * FROM software WHERE {where} ORDER BY updated_at DESC LIMIT ? OFFSET ?",
+        params + [per_page, offset]
+    ).fetchall()
+
+    result = []
+    for sw in rows:
+        sw_dict = software_to_dict(sw)
+        # Latest active version
+        ver = conn.execute(
+            "SELECT * FROM software_versions WHERE software_id=? AND status='active' ORDER BY created_at DESC LIMIT 1",
+            (sw['id'],)
+        ).fetchone()
+        sw_dict['latest_version'] = version_to_dict(ver) if ver else None
+        sw_dict['version_count'] = conn.execute(
+            "SELECT COUNT(*) FROM software_versions WHERE software_id=?",
+            (sw['id'],)
+        ).fetchone()[0]
+        sw_dict['total_downloads'] = conn.execute(
+            "SELECT COALESCE(SUM(download_count),0) FROM software_versions WHERE software_id=?",
+            (sw['id'],)
+        ).fetchone()[0]
+        result.append(sw_dict)
+
+    conn.close()
+    return jsonify({
+        'code': 0,
+        'data': result,
+        'total': total,
+        'page': page,
+        'per_page': per_page,
+    })
+
+
+@app.route('/api/admin/software/<slug>/versions', methods=['GET'])
+@require_admin
+def admin_software_versions(slug):
+    conn = get_db()
+    sw = conn.execute("SELECT * FROM software WHERE slug=?", (slug,)).fetchone()
+    if not sw:
+        conn.close()
+        return jsonify({'code': 404, 'message': '软件不存在'}), 404
+
+    versions = conn.execute(
+        "SELECT * FROM software_versions WHERE software_id=? ORDER BY created_at DESC",
+        (sw['id'],)
+    ).fetchall()
+    conn.close()
+    return jsonify({
+        'code': 0,
+        'data': [version_to_dict(v) for v in versions]
+    })
+
+
+@app.route('/api/admin/request', methods=['GET'])
+@require_admin
+def admin_request_list():
+    status = request.args.get('status', '').strip()
+    page = int(request.args.get('page', 1))
+    per_page = int(request.args.get('per_page', 50))
+    offset = (page - 1) * per_page
+
+    conn = get_db()
+    if status:
+        total = conn.execute("SELECT COUNT(*) FROM requests WHERE status=?", (status,)).fetchone()[0]
+        rows = conn.execute(
+            "SELECT * FROM requests WHERE status=? ORDER BY created_at DESC LIMIT ? OFFSET ?",
+            (status, per_page, offset)
+        ).fetchall()
+    else:
+        total = conn.execute("SELECT COUNT(*) FROM requests").fetchone()[0]
+        rows = conn.execute(
+            "SELECT * FROM requests ORDER BY created_at DESC LIMIT ? OFFSET ?",
+            (per_page, offset)
+        ).fetchall()
+    conn.close()
+    return jsonify({
+        'code': 0,
+        'data': [{'id': r['id'], 'type': r['type'], 'title': r['title'],
+                   'description': r['description'], 'submitter': r['submitter'],
+                   'status': r['status'], 'created_at': r['created_at']} for r in rows],
+        'total': total,
+    })
+
+
+@app.route('/api/admin/request/<req_id>', methods=['PATCH'])
+@require_admin
+def admin_request_update(req_id):
+    data = request.get_json(force=True) if request.is_json else {}
+    conn = get_db()
+    row = conn.execute("SELECT * FROM requests WHERE id=?", (req_id,)).fetchone()
+    if not row:
+        conn.close()
+        return jsonify({'code': 404, 'message': '需求不存在'}), 404
+
+    if 'status' in data:
+        conn.execute("UPDATE requests SET status=? WHERE id=?", (data['status'], req_id))
+    if 'description' in data:
+        conn.execute("UPDATE requests SET description=? WHERE id=?", (data['description'], req_id))
+    conn.commit()
+    conn.close()
+    return jsonify({'code': 0, 'message': '更新成功'})
+
+
+# ─── Click tracking (keep existing) ────────────────────────
+
+CLICKS_DB = BASE_DIR / 'clicks.db'
+
+
+def get_clicks_db():
+    conn = sqlite3.connect(str(CLICKS_DB))
+    conn.execute("CREATE TABLE IF NOT EXISTS clicks (id TEXT PRIMARY KEY, count INTEGER DEFAULT 1)")
+    conn.commit()
+    return conn
+
+
+@app.route('/api/clicks', methods=['POST'])
+def track_click():
+    data = request.get_json(force=True, silent=True) or {}
+    tool_id = data.get('toolId') or data.get('tool_id', '') or data.get('id', '')
+    conn = get_clicks_db()
+    conn.execute(
+        "INSERT INTO clicks VALUES (?, 1) ON CONFLICT(id) DO UPDATE SET count = count + 1",
+        (tool_id,)
+    )
+    conn.commit()
+    row = conn.execute("SELECT count FROM clicks WHERE id=?", (tool_id,)).fetchone()
+    conn.close()
+    return jsonify({'clicks': row[0] if row else 1})
+
+
+@app.route('/api/clicks/<tool_id>', methods=['GET'])
+def get_clicks(tool_id):
+    conn = get_clicks_db()
+    row = conn.execute("SELECT count FROM clicks WHERE id=?", (tool_id,)).fetchone()
+    conn.close()
+    return jsonify({'clicks': row[0] if row else 0})
+
+
+if __name__ == '__main__':
+    init_db()
+    print("Starting server on 0.0.0.0:8105")
+    app.run(host='0.0.0.0', port=8105, threaded=True)
