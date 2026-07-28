@@ -11,3 +11,5 @@ requests.json
 # Upload files
 software_files/
 venv/
+html-tools.tar.gz
+*.pid

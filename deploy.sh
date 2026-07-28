@@ -39,7 +39,18 @@ setup_venv() {
     fi
     source "$VENV_DIR/bin/activate"
     echo "[提示] 安装 Python 依赖 (venv)..."
-    pip install --quiet flask
+    PYVER=$(python3 -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')")
+    PYTHON_MINOR=$(python3 -c "import sys; print(sys.version_info.minor)")
+    if [ "$PYTHON_MINOR" -le 6 ]; then
+        echo "[提示] 检测到 Python 3.6，安装兼容版 Flask 2.0.3..."
+        pip install --quiet "Flask==2.0.3" "Werkzeug==2.0.3" "Jinja2==3.0.3"
+    elif [ "$PYTHON_MINOR" -le 7 ]; then
+        echo "[提示] 检测到 Python 3.7，安装兼容版 Flask 2.2.x..."
+        pip install --quiet "Flask==2.2.5" "Werkzeug==2.2.3"
+    else
+        echo "[提示] 安装最新 Flask..."
+        pip install --quiet flask
+    fi
     echo "[OK] 虚拟环境就绪 ($VENV_DIR)"
 }
 
