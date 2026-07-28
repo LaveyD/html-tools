@@ -10,3 +10,4 @@ requests.json
 
 # Upload files
 software_files/
+venv/
