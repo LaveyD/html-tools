@@ -713,6 +713,9 @@
             renderCurrentView();
         }
 
+        // ── Blocked Tools (fetched from API) ───
+        let blockedTools = [];
+
         // ── Tools Data ────────────────────────────────────
         let toolsData = { categories: [], tools: [] };
         let toolsCategory = 'all';
@@ -721,8 +724,24 @@
 
         async function loadTools() {
             try {
-                const res = await fetch('index.json');
-                toolsData = await res.json();
+                // Fetch blocked tools list
+                const [toolsRes, blockedRes] = await Promise.all([
+                    fetch('index.json'),
+                    fetch('/api/tools/blocked').catch(() => ({ json: () => ({ data: [] }) }))
+                ]);
+                const raw = await toolsRes.json();
+                const blocked = (await blockedRes.json()) || {};
+                blockedTools = blocked.data || [];
+
+                // 过滤：屏蔽名单 + 标记为不可见的工具
+                toolsData = {
+                    ...raw,
+                    tools: (raw.tools || []).filter(t => {
+                        if (t.visible === false) return false;
+                        if (blockedTools.includes(t.id)) return false;
+                        return true;
+                    })
+                };
             } catch (e) {
                 console.error('Failed to load tools:', e);
             }

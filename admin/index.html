@@ -192,6 +192,52 @@
 
         .actions-group { display: flex; gap: 6px; }
 
+        /* Pagination */
+        .pagination-wrapper {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 12px 16px; border-top: 1px solid var(--border);
+        }
+        .pagination-left { display: flex; align-items: center; gap: 12px; }
+        .pagination-info { font-size: 12px; color: var(--text-muted); }
+        .pagination-size {
+            display: flex; align-items: center; gap: 4px; font-size: 12px; color: var(--text-muted);
+        }
+        .pagination-size select {
+            padding: 2px 6px; background: var(--bg-hover); border: 1px solid var(--border);
+            border-radius: 4px; color: var(--text); font-size: 12px; cursor: pointer;
+        }
+        .pagination-right { display: flex; align-items: center; gap: 6px; }
+        .page-btn {
+            min-width: 34px; height: 34px; padding: 0 8px;
+            display: inline-flex; align-items: center; justify-content: center;
+            background: transparent; border: 1px solid var(--border); border-radius: 6px;
+            color: var(--text); font-size: 13px; cursor: pointer; transition: all 0.15s;
+        }
+        .page-btn:hover:not(:disabled):not(.active) {
+            background: rgba(99,102,241,0.1); border-color: var(--primary); color: var(--primary);
+        }
+        .page-btn.active {
+            background: var(--primary); border-color: var(--primary); color: #fff; font-weight: 600;
+        }
+        .page-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+        .page-btn.ellipsis { border-color: transparent; background: transparent; cursor: default; }
+        .page-btn.ellipsis:hover { background: transparent; border-color: transparent; color: var(--text-muted); }
+        .page-goto {
+            display: flex; align-items: center; gap: 4px; margin-left: 4px;
+        }
+        .page-goto input {
+            width: 48px; height: 34px; text-align: center; padding: 0;
+            background: var(--bg); border: 1px solid var(--border); border-radius: 6px;
+            color: var(--text); font-size: 12px;
+        }
+        .page-goto input:focus { outline: none; border-color: var(--primary); }
+        .page-goto button {
+            height: 34px; padding: 0 10px; background: var(--bg-hover);
+            border: 1px solid var(--border); border-radius: 6px;
+            color: var(--text-muted); font-size: 12px; cursor: pointer; transition: all 0.15s;
+        }
+        .page-goto button:hover { border-color: var(--primary); color: var(--primary); }
+
         /* Upload area */
         .upload-section {
             background: var(--bg-card); border: 1px solid var(--border);
@@ -389,6 +435,9 @@
             <a class="sidebar-link" onclick="showSection('requests')" data-section="requests">
                 <i class="fas fa-inbox"></i> 需求管理
             </a>
+            <a class="sidebar-link" onclick="showSection('tools')" data-section="tools">
+                <i class="fas fa-wrench"></i> 工具管理
+            </a>
             <div class="sidebar-footer">
                 <a href="javascript:logout()" class="sidebar-link" style="color:var(--red)">
                     <i class="fas fa-sign-out-alt"></i> 退出登录
@@ -536,6 +585,43 @@
                     </table>
                 </div>
             </div>
+
+            <!-- Tools Management -->
+            <div class="admin-section" id="section-tools">
+                <div class="page-header"><div class="page-title">工具管理</div></div>
+                <div class="filter-bar">
+                    <input type="text" class="filter-input" id="tool-search" placeholder="搜索工具名称...">
+                    <select class="filter-select" id="tool-status-filter">
+                        <option value="">全部</option>
+                        <option value="visible">显示中</option>
+                        <option value="blocked">已屏蔽</option>
+                    </select>
+                </div>
+                <div class="table-wrapper">
+                    <table>
+                        <thead>
+                            <tr><th>图标</th><th>名称</th><th>ID</th><th>分类</th><th>描述</th><th>状态</th><th>操作</th></tr>
+                        </thead>
+                        <tbody id="tool-table-body"><tr><td colspan="7" class="empty-state">加载中...</td></tr></tbody>
+                    </table>
+                    <div class="pagination-wrapper" id="tool-pagination">
+                        <div class="pagination-left">
+                            <span class="pagination-info" id="tool-page-info">共 0 条</span>
+                            <div class="pagination-size">
+                                每页
+                                <select id="tool-per-page" onchange="toolPerPage=+this.value;toolPage=1;loadToolsList()">
+                                    <option value="15">15</option>
+                                    <option value="30" selected>30</option>
+                                    <option value="50">50</option>
+                                    <option value="100">100</option>
+                                </select>
+                                条
+                            </div>
+                        </div>
+                        <div class="pagination-right" id="tool-page-btns"></div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -575,8 +661,8 @@
             } catch { window.location.href = 'login.html'; }
         })();
 
-        function api(path) {
-            return fetch(path, { headers: { 'X-Admin-Token': TOKEN } });
+        function api(path, opts = {}) {
+            return fetch(path, { headers: { 'X-Admin-Token': TOKEN }, ...opts });
         }
 
         async function apiJson(path, opts = {}) {
@@ -616,6 +702,7 @@
             if (name === 'overview') loadStats();
             if (name === 'software') loadSoftwareList();
             if (name === 'requests') loadRequests();
+            if (name === 'tools') loadToolsList();
         }
 
         function logout() {
@@ -921,6 +1008,111 @@
                 <p><strong>状态：</strong>${r.status}</p>
                 <p><strong>时间：</strong>${formatDate(r.created_at)}</p>`;
         }
+
+        // ── Tools Management ─────────────────────────────
+        let toolPage = 1;
+        let toolPerPage = 30;
+        let allTools = [];
+
+        function buildPaginationHTML(total, current, id) {
+            const totalPages = total || 1;
+            if (totalPages <= 1) return '';
+            let h = '';
+            h += `<button class="page-btn" onclick="toolPage=${current-1};loadToolsList()" ${current<=1?'disabled':''}><i class="fas fa-chevron-left"></i></button>`;
+
+            let pages = [];
+            pages.push(1);
+            for (let i = Math.max(2, current - 1); i <= Math.min(totalPages - 1, current + 1); i++) {
+                if (!pages.includes(i)) pages.push(i);
+            }
+            if (totalPages > 1) pages.push(totalPages);
+            pages.sort((a, b) => a - b);
+
+            for (let i = 0; i < pages.length; i++) {
+                if (i > 0 && pages[i] - pages[i-1] > 1) {
+                    h += `<button class="page-btn ellipsis">…</button>`;
+                }
+                h += `<button class="page-btn ${pages[i]===current?'active':''}" onclick="toolPage=${pages[i]};loadToolsList()">${pages[i]}</button>`;
+            }
+
+            h += `<button class="page-btn" onclick="toolPage=${current+1};loadToolsList()" ${current>=totalPages?'disabled':''}><i class="fas fa-chevron-right"></i></button>`;
+            h += `<div class="page-goto">
+                <input type="number" id="${id}-goto" min="1" max="${totalPages}" placeholder="页码"
+                       onkeydown="if(event.key==='Enter'){toolPage=+document.getElementById('${id}-goto').value;loadToolsList();this.value='';}">
+                <button onclick="if(document.getElementById('${id}-goto').value){toolPage=+document.getElementById('${id}-goto').value;loadToolsList();document.getElementById('${id}-goto').value='';}">跳</button>
+            </div>`;
+            return h;
+        }
+
+        async function loadToolsList() {
+            const body = document.getElementById('tool-table-body');
+            body.innerHTML = '<tr><td colspan="7" class="empty-state">加载中...</td></tr>';
+
+            const data = await apiJson('/api/admin/tools');
+            if (data.code !== 0) return;
+            allTools = data.data;
+
+            const q = document.getElementById('tool-search').value.toLowerCase();
+            const statusFilter = document.getElementById('tool-status-filter').value;
+
+            let filtered = allTools.filter(t => {
+                if (q && !t.name.toLowerCase().includes(q) && !t.id.toLowerCase().includes(q)) return false;
+                if (statusFilter === 'visible' && t.blocked) return false;
+                if (statusFilter === 'blocked' && !t.blocked) return false;
+                return true;
+            });
+
+            const perPage = toolPerPage;
+            const totalPages = Math.ceil(filtered.length / perPage) || 1;
+            if (toolPage > totalPages) toolPage = 1;
+            const start = (toolPage - 1) * perPage;
+            const pageItems = filtered.slice(start, start + perPage);
+
+            if (!filtered.length) {
+                body.innerHTML = '<tr><td colspan="7" class="empty-state">暂无数据</td></tr>';
+            } else {
+                body.innerHTML = pageItems.map(t => `<tr>
+                    <td style="font-size:20px">${t.icon || '🔧'}</td>
+                    <td><strong>${t.name}</strong></td>
+                    <td style="font-size:12px;color:var(--text-muted)">${t.id}</td>
+                    <td>${t.category || '-'}</td>
+                    <td class="desc-cell" title="${(t.description||'').replace(/"/g,'&quot;')}">${t.description || '-'}</td>
+                    <td><span class="status-badge ${t.blocked ? 'archived' : 'active'}">${t.blocked ? '已屏蔽' : '显示中'}</span></td>
+                    <td><div class="actions-group">
+                        ${t.blocked
+                            ? `<button class="action-btn success" onclick="toggleToolBlock('${t.id}',false)" title="取消屏蔽"><i class="fas fa-eye"></i> 显示</button>`
+                            : `<button class="action-btn danger" onclick="toggleToolBlock('${t.id}',true)" title="屏蔽"><i class="fas fa-eye-slash"></i> 屏蔽</button>`
+                        }
+                    </div></td>
+                </tr>`).join('');
+            }
+
+            document.getElementById('tool-page-info').textContent = `共 ${filtered.length} 条，第 ${toolPage}/${totalPages} 页`;
+            document.getElementById('tool-page-btns').innerHTML = buildPaginationHTML(totalPages, toolPage, 'tool');
+        }
+
+        async function toggleToolBlock(toolId, block) {
+            const endpoint = block ? '/api/admin/tool/block' : '/api/admin/tool/unblock';
+            const data = await apiJson(endpoint, {
+                method: 'POST', headers: {'Content-Type':'application/json'},
+                body: JSON.stringify({ tool_id: toolId })
+            });
+            if (data.code === 0) {
+                showToast(block ? '已屏蔽' : '已取消屏蔽');
+                loadToolsList();
+            } else {
+                showToast(data.message, 'error');
+            }
+        }
+
+        let toolSearchTimer;
+        document.getElementById('tool-search').addEventListener('input', () => {
+            clearTimeout(toolSearchTimer);
+            toolSearchTimer = setTimeout(() => { toolPage = 1; loadToolsList(); }, 400);
+        });
+        document.getElementById('tool-status-filter').addEventListener('change', () => {
+            toolPage = 1; loadToolsList();
+        });
 
         // ── Init ────────────────────────────────────────
         loadStats();

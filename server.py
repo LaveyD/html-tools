@@ -127,6 +127,14 @@ def init_db():
             UNIQUE(software_id, version, status)
         );
 
+        -- 屏蔽工具表
+        CREATE TABLE IF NOT EXISTS blocked_tools (
+            id TEXT PRIMARY KEY,
+            tool_id TEXT UNIQUE NOT NULL,
+            tool_name TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+
         -- 需求表
         CREATE TABLE IF NOT EXISTS requests (
             id TEXT PRIMARY KEY,
@@ -861,6 +869,98 @@ def admin_request_update(req_id):
     conn.commit()
     conn.close()
     return jsonify({'code': 0, 'message': '更新成功'})
+
+
+# ─── Tools Management (blocked tools) ────────────────────────
+
+@app.route('/api/admin/tools', methods=['GET'])
+@require_admin
+def admin_tools_list():
+    """List all tools from index.json with blocked status"""
+    try:
+        with open(BASE_DIR / 'index.json') as f:
+            data = json.load(f)
+    except Exception:
+        return jsonify({'code': 0, 'data': [], 'total': 0})
+
+    # Get blocked tool IDs from DB
+    conn = get_db()
+    blocked = {r['tool_id'] for r in conn.execute("SELECT tool_id FROM blocked_tools").fetchall()}
+    conn.close()
+
+    tools = []
+    for t in data.get('tools', []):
+        t['blocked'] = t['id'] in blocked or t.get('visible') == False
+        tools.append({
+            'id': t['id'],
+            'name': t['name'],
+            'category': t.get('category', ''),
+            'description': t.get('description', ''),
+            'blocked': t['blocked'],
+            'icon': t.get('icon', ''),
+        })
+
+    return jsonify({'code': 0, 'data': tools, 'total': len(tools)})
+
+
+@app.route('/api/admin/tool/block', methods=['GET', 'POST'])
+@require_admin
+def admin_block_tool():
+    if request.method == 'POST' and request.is_json:
+        data = request.get_json(force=True)
+    elif request.method == 'GET':
+        data = request.args
+    else:
+        data = {}
+    tool_id = data.get('tool_id', '')
+    if not tool_id:
+        return jsonify({'code': 400, 'message': '缺少 tool_id'}), 400
+
+    conn = get_db()
+    existing = conn.execute("SELECT * FROM blocked_tools WHERE tool_id=?", (tool_id,)).fetchone()
+    if existing:
+        conn.close()
+        return jsonify({'code': 0, 'message': '已屏蔽', 'data': {'blocked': True}})
+
+    uid = uuid.uuid4().hex
+    # Try to get tool name
+    try:
+        with open(BASE_DIR / 'index.json') as f:
+            raw = json.load(f)
+        tool_name = next((t['name'] for t in raw.get('tools', []) if t['id'] == tool_id), tool_id)
+    except Exception:
+        tool_name = tool_id
+
+    conn.execute(
+        "INSERT INTO blocked_tools (id, tool_id, tool_name) VALUES (?, ?, ?)",
+        (uid, tool_id, tool_name)
+    )
+    conn.commit()
+    conn.close()
+    return jsonify({'code': 0, 'message': '已屏蔽', 'data': {'blocked': True}})
+
+
+@app.route('/api/admin/tool/unblock', methods=['GET', 'POST'])
+@require_admin
+def admin_unblock_tool():
+    data = request.get_json(force=True) if request.is_json else {}
+    tool_id = data.get('tool_id', '')
+    if not tool_id:
+        return jsonify({'code': 400, 'message': '缺少 tool_id'}), 400
+
+    conn = get_db()
+    conn.execute("DELETE FROM blocked_tools WHERE tool_id=?", (tool_id,))
+    conn.commit()
+    conn.close()
+    return jsonify({'code': 0, 'message': '已取消屏蔽', 'data': {'blocked': False}})
+
+@app.route('/api/tools/blocked', methods=['GET'])
+def public_blocked_tools():
+    """Public endpoint: return list of blocked tool IDs for the homepage."""
+    conn = get_db()
+    rows = conn.execute("SELECT tool_id FROM blocked_tools").fetchall()
+    conn.close()
+    return jsonify({'code': 0, 'data': [r['tool_id'] for r in rows]})
 
 
 # ─── Click tracking (keep existing) ────────────────────────
