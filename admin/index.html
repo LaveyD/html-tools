@@ -755,8 +755,32 @@
             document.getElementById('file-size').textContent = formatSize(file.size);
             fileSelected.classList.add('show');
             dropZone.style.display = 'none';
-            if (!document.getElementById('sw-name').value) {
-                document.getElementById('sw-name').value = file.name.replace(/\.[^.]+$/, '').replace(/[-_]/g, ' ');
+            
+            // Auto-parse filename
+            parseFileName(file.name);
+        }
+
+        async function parseFileName(filename) {
+            try {
+                const res = await fetch(`/api/software/parse-filename?filename=${encodeURIComponent(filename)}`);
+                const data = await res.json();
+                if (data.code === 0) {
+                    const p = data.data;
+                    if (!document.getElementById('sw-name').value) {
+                        document.getElementById('sw-name').value = p.name;
+                    }
+                    if (p.version) {
+                        document.getElementById('sw-version').value = p.version;
+                    }
+                    if (!document.getElementById('sw-desc').value && p.arch) {
+                        document.getElementById('sw-desc').value = `${p.name} (${p.arch})`;
+                    }
+                }
+            } catch (e) {
+                // fallback: simple parse
+                if (!document.getElementById('sw-name').value) {
+                    document.getElementById('sw-name').value = filename.replace(/\.[^.]+$/, '').replace(/[-_]/g, ' ');
+                }
             }
         }
 

@@ -13,3 +13,4 @@ software_files/
 venv/
 *.tar.gz
 *.pid
+__pycache__/

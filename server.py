@@ -6,11 +6,20 @@ import json
 import uuid
 import hashlib
 import sqlite3
+import struct
+import io
 from datetime import datetime, timedelta
 from pathlib import Path
 from functools import wraps
-from flask import Flask, request, jsonify, send_file, redirect
+import re
+from flask import Flask, request, jsonify, send_from_directory, send_file, redirect
 from werkzeug.utils import secure_filename
+
+try:
+    from PIL import Image
+    HAS_ICON_EXTRACT = True
+except ImportError:
+    HAS_ICON_EXTRACT = False
 
 app = Flask(__name__)
 
@@ -18,6 +27,135 @@ BASE_DIR = Path(__file__).parent.resolve()
 DB_PATH = BASE_DIR / 'software.db'
 UPLOAD_DIR = BASE_DIR / 'software_files'
 UPLOAD_DIR.mkdir(exist_ok=True)
+ICON_DIR = BASE_DIR / 'software_icons'
+ICON_DIR.mkdir(exist_ok=True)
+
+# ─── Icon Extraction ───────────────────────────────────────
+def extract_exe_icon(exe_path, size=64):
+    """Extract icon from .exe/dll by parsing PE resource directory directly."""
+    if not HAS_ICON_EXTRACT:
+        return None
+    try:
+        with open(exe_path, 'rb') as f:
+            data = f.read()
+
+        if len(data) < 64 or data[:2] != b'MZ':
+            return None
+
+        # DOS header -> PE offset
+        pe_offset = struct.unpack_from('<I', data, 60)[0]
+        if data[pe_offset:pe_offset+4] != b'PE\x00\x00':
+            return None
+
+        # COFF header
+        coff = pe_offset + 4
+        num_sections = struct.unpack_from('<H', data, coff + 2)[0]
+        opt_hdr_size = struct.unpack_from('<H', data, coff + 20)[0]
+
+        # Optional header -> find resource directory
+        opt_hdr = coff + 20 + 2  # skip magic
+        magic = struct.unpack_from('<H', data, coff + 20)[0]
+        if magic == 0x10b:  # PE32
+            res_entry = opt_hdr + 96  # entry index 2 (resource), 8 bytes each, offset from start of optional header fields
+            dd_offset = coff + 20 + 2 + 96  # magic(2) + 96 bytes to data directories
+        elif magic == 0x20b:  # PE32+
+            dd_offset = coff + 20 + 2 + 112
+        else:
+            return None
+
+        # Data directory entry 2 = resource
+        res_rva, res_size = struct.unpack_from('<II', data, dd_offset)
+        if not res_rva:
+            return None
+
+        # Parse sections for RVA -> file offset
+        sections = []
+        sec_offset = coff + 20 + 2 + opt_hdr_size
+        for i in range(num_sections):
+            base = sec_offset + i * 40
+            vaddr = struct.unpack_from('<I', data, base + 12)[0]
+            vsize = struct.unpack_from('<I', data, base + 8)[0]
+            roff = struct.unpack_from('<I', data, base + 20)[0]
+            rsize = struct.unpack_from('<I', data, base + 16)[0]
+            sections.append((vaddr, vsize, roff, rsize))
+
+        def rva2off(rva):
+            for va, vs, ro, rs in sections:
+                if va <= rva < va + max(vs, rs):
+                    return ro + (rva - va)
+            return None
+
+        def read_u32(off):
+            return struct.unpack_from('<I', data, off)[0]
+
+        # Navigate resource directory
+        def parse_res_dir(rva):
+            off = rva2off(rva)
+            if off is None:
+                return []
+            named = struct.unpack_from('<H', data, off + 12)[0]
+            id_cnt = struct.unpack_from('<H', data, off + 14)[0]
+            entries = []
+            for i in range(named + id_cnt):
+                base = off + 16 + i * 8
+                name = struct.unpack_from('<I', data, base)[0]
+                off_or_data = struct.unpack_from('<I', data, base + 4)[0]
+                is_dir = bool(off_or_data & 0x80000000)
+                real_off = off_or_data & 0x7FFFFFFF
+                entries.append((name, real_off, is_dir))
+            return entries
+
+        base_rva = res_rva
+        # Level 1: find RT_ICON (3)
+        level1 = parse_res_dir(base_rva)
+        icon_data_list = []
+
+        def get_res_data(rva):
+            """Parse IMAGE_RESOURCE_DATA_ENTRY at RVA and return raw bytes."""
+            off = rva2off(rva)
+            if off is None:
+                return None
+            # IMAGE_RESOURCE_DATA_ENTRY: DataRVA(4) + Size(4) + CodePage(4) + Reserved(4)
+            data_rva = struct.unpack_from('<I', data, off)[0]
+            data_size = struct.unpack_from('<I', data, off + 4)[0]
+            data_off = rva2off(data_rva)
+            if data_off is None:
+                return None
+            return data[data_off:data_off + data_size]
+
+        for name, off, is_dir in level1:
+            if name == 3 and is_dir:  # RT_ICON
+                level2 = parse_res_dir(base_rva + off)
+                for icon_id, data_off, is_data in level2:
+                    if is_data:
+                        d = get_res_data(base_rva + (data_off & 0x7FFFFFFF))
+                        if d:
+                            icon_data_list.append(d)
+                    else:
+                        level3 = parse_res_dir(base_rva + data_off)
+                        for lang_id, lang_data_off, _ in level3:
+                            d = get_res_data(base_rva + (lang_data_off & 0x7FFFFFFF))
+                            if d:
+                                icon_data_list.append(d)
+
+        if not icon_data_list:
+            return None
+
+        # Try each as ICO image
+        for raw in icon_data_list:
+            try:
+                img = Image.open(io.BytesIO(raw))
+                img = img.resize((size, size), Image.LANCZOS)
+                buf = io.BytesIO()
+                img.save(buf, format='PNG')
+                return buf.getvalue()
+            except:
+                continue
+
+        return None
+    except Exception as e:
+        print(f"Icon extract error: {e}")
+        return None
 
 # ─── Admin Auth ────────────────────────────────────────────
 # Admin password hash (sha256 of the password)
@@ -352,6 +490,10 @@ def list_software():
             (sw['id'],)
         ).fetchone()[0]
 
+        # Add icon URL if icon exists
+        icon_path = ICON_DIR / f"{sw['id']}.png"
+        sw_dict['icon_url'] = f"/software_icons/{sw['id']}.png" if icon_path.exists() else None
+
         result.append(sw_dict)
 
     conn.close()
@@ -389,6 +531,55 @@ def get_software(slug):
 
 
 # ─── Upload ────────────────────────────────────────────────
+
+@app.route('/api/software/parse-filename', methods=['GET', 'POST'])
+def parse_filename():
+    """Parse software name, version, arch from filename."""
+    fn = request.args.get('filename', '') if request.method == 'GET' else ''
+    if not fn:
+        data = request.get_json(silent=True) or {}
+        fn = data.get('filename', '')
+    if not fn:
+        return jsonify({'code': 400, 'message': '缺少 filename'}), 400
+
+    # Strip extension
+    name_part = fn.rsplit('.', 1)[0] if '.' in fn else fn
+    # Replace separators with space
+    name_part = re.sub(r'[_\-\s]+', ' ', name_part)
+    # Try to extract version
+    version = ''
+    # Pattern: vX.Y.Z, vY.Z, or digits.digits.digits...
+    ver_match = re.search(
+        r'(?:v|version|VER)?([\d]+(?:\.[\d]+){1,4})(?:\s*[a-zA-Z]+)?',
+        name_part, re.IGNORECASE
+    )
+    if ver_match:
+        version = ver_match.group(1)
+    # Try to extract architecture
+    arch = ''
+    arch_pattern = r'\b(x64|x86|amd64|arm64|aarch64|i386|win32|win64|macos|linux|android)\b'
+    for m in re.finditer(arch_pattern, name_part, re.IGNORECASE):
+        arch = m.group(1).lower()
+        break
+    # Clean name: remove version + arch + common filler words (Setup, Installer, etc.)
+    clean_name = re.sub(r'(?:v|version|VER)?[\d]+(?:\.[\d]+){1,4}(?:\s*[a-zA-Z]+)?', '', name_part, flags=re.IGNORECASE).strip()
+    clean_name = re.sub(arch_pattern, '', clean_name, flags=re.IGNORECASE).strip()
+    clean_name = re.sub(r'(setup|installer|install|portable|full|crack|patch|keygen)', '', clean_name, flags=re.IGNORECASE).strip()
+    clean_name = re.sub(r'\s+', ' ', clean_name).strip()
+    # Capitalize first letter
+    if clean_name:
+        clean_name = clean_name[0].upper() + clean_name[1:]
+
+    return jsonify({
+        'code': 0,
+        'data': {
+            'filename': fn,
+            'name': clean_name or name_part,
+            'version': version,
+            'arch': arch,
+        }
+    })
+
 
 @app.route('/api/software/upload', methods=['POST'])
 @require_admin
@@ -448,6 +639,16 @@ def upload_software():
     file_path = UPLOAD_DIR / safe_filename
     file.save(str(file_path))
     file_size = file_path.stat().st_size
+
+    # Extract icon from .exe/.msi
+    icon_data = None
+    if original_name.lower().endswith(('.exe', '.dll', '.msi')):
+        icon_data = extract_exe_icon(str(file_path), size=64)
+
+    # Save icon to software_icons/<sw_id>.png
+    if icon_data:
+        icon_path = ICON_DIR / f"{sw_id}.png"
+        icon_path.write_bytes(icon_data)
 
     # Save version
     ver_id = uuid.uuid4().hex

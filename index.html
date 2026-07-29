@@ -441,8 +441,19 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 22px;
+            font-size: 24px;
             flex-shrink: 0;
+        }
+
+        .tool-icon-img {
+            background: transparent;
+            overflow: hidden;
+        }
+
+        .tool-icon-img img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
         }
 
         .tool-info { flex: 1; min-width: 0; }
@@ -939,11 +950,20 @@
                 const cat = softwareCategories.find(c => c.id === sw.category) || { icon: '📦', name: sw.category };
                 const latestVer = sw.latest_version;
                 const latestSize = sw.latest_size;
+                const iconHtml = sw.icon_url
+                    ? `<img src="${sw.icon_url}" alt="${sw.name}" onerror="this.parentElement.innerHTML='${cat.icon}';this.parentElement.style.background='#3b82f620';this.parentElement.style.color='#3b82f6';">`
+                    : cat.icon;
+                const iconClass = sw.icon_url
+                    ? 'tool-icon tool-icon-img'
+                    : 'tool-icon';
+                const iconStyle = sw.icon_url
+                    ? ''
+                    : 'background: #3b82f620; color: #3b82f6;';
                 return `
                 <div class="tool-card" onclick="window.location.href='software/detail.html#${sw.slug}'">
                     <div class="tool-header">
-                        <div class="tool-icon" style="background: #3b82f620; color: #3b82f6;">
-                            ${cat.icon}
+                    <div class="${iconClass}" style="${iconStyle}">
+                            ${iconHtml}
                         </div>
                         <div class="tool-info">
                             <div class="tool-title">${sw.name}</div>
