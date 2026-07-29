@@ -868,42 +868,43 @@
                     return entries;
                 };
 
-                // 递归查找图标 — dir entry: RVA 相对父目录, data entry: RVA 绝对
-                function findIconData(rva, nameFilter) {
-                    const entries = parseResDir(rva);
-                    if (!entries || entries.length === 0) return null;
-                    for (const e of entries) {
-                        if (nameFilter !== null && e.name !== nameFilter) continue;
-                        if (e.isDir) {
-                            const result = findIconData(rva + e.off, null);
-                            if (result) return result;
-                        } else {
-                            // data entry: e.off is ABSOLUTE RVA to IMAGE_RESOURCE_DATA_ENTRY
-                            const deOff = rva2off(e.off);
-                            if (deOff !== null && deOff + 8 <= headBuf.byteLength) {
-                                const drva = dv.getUint32(deOff, true);
-                                const dsz = dv.getUint32(deOff + 4, true);
-                                const doff = rva2off(drva);
-                                if (doff !== null && dsz > 0 && dsz < 20000000) {
-                                    return { offset: doff, size: dsz };
-                                }
-                            }
+                // 简化方案：在 .rsrc section 中直接搜索 ICO 头 (00 00 01 00)
+                console.log('[icon] searching for ICO header in .rsrc section');
+                let iconFileRange = null;
+                const rsrcOff = rsrcSec.ro;
+                const rsrcSize = Math.max(rsrcSec.rs, rsrcSec.vs);
+                // 确保读取范围覆盖整个 .rsrc section
+                const neededSize = rsrcOff + rsrcSize;
+                const srcSlice = file.slice(0, Math.min(file.size, neededSize + 65536));
+                const srcBuf = await srcSlice.arrayBuffer();
+                const dv2 = new DataView(srcBuf);
+                const u8 = new Uint8Array(srcBuf);
+
+                // 搜索 ICO 头: 00 00 01 00 (reserved=0, type=1)
+                for (let i = 0; i < srcBuf.byteLength - 22; i++) {
+                    if (u8[i] === 0 && u8[i+1] === 0 && u8[i+2] === 1 && u8[i+3] === 0) {
+                        const count = dv2.getUint16(i + 4, true);
+                        if (count < 1 || count > 16) continue;
+                        // 验证所有条目，找到 ICO 数据的完整范围
+                        let endOff = 0;
+                        let valid = true;
+                        for (let j = 0; j < count; j++) {
+                            const e = i + 6 + j * 16;
+                            if (e + 16 > srcBuf.byteLength) { valid = false; break; }
+                            const w = u8[e]; // width (0=256)
+                            const h = u8[e+1]; // height (0=256)
+                            const dataSz = dv2.getUint32(e + 12, true); // size in bytes
+                            const dataOff = dv2.getUint32(e + 16, true); // file offset from ICO start
+                            if (dataSz > 2000000 || dataOff > 2000000) { valid = false; break; }
+                            const absEnd = i + dataOff + dataSz;
+                            if (absEnd > endOff) endOff = absEnd;
+                        }
+                        if (valid && endOff > 0 && endOff <= srcBuf.byteLength) {
+                            iconFileRange = { offset: i, size: endOff - i };
+                            console.log('[icon] found ICO at offset=0x' + i.toString(16) + ' count=' + count + ' size=' + iconFileRange.size);
+                            break;
                         }
                     }
-                    return null;
-                }
-
-                // 查找 RT_ICON (id=3) 或 RT_GROUP_ICON (id=14)
-                let iconFileRange = null;
-                const entries1 = parseResDir(resRva);
-                for (const e1 of entries1) {
-                    if (e1.name !== 3 && e1.name !== 14) continue;
-                    if (e1.isDir) {
-                        iconFileRange = findIconData(resRva + e1.off, null);
-                    } else {
-                        iconFileRange = findIconData(e1.off, null);
-                    }
-                    if (iconFileRange) break;
                 }
 
                 if (!iconFileRange) throw 'No icon resource';
