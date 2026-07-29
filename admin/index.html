@@ -868,16 +868,21 @@
                     return entries;
                 };
 
-                // 找 RT_ICON (id=3)
+                // 找 RT_ICON (id=3) — 子项 RVA 相对于父目录 RVA
                 let iconFileRange = null;
 
-                for (const e1 of parseResDir(resRva)) {
+                const entries1 = parseResDir(resRva);
+                for (const e1 of entries1) {
                     if (e1.name !== 3 || !e1.isDir) continue;
-                    for (const e2 of parseResDir(e1.off)) {
+                    const rva1 = resRva + e1.off;
+                    const entries2 = parseResDir(rva1);
+                    for (const e2 of entries2) {
                         let dataRange = null;
                         if (e2.isDir) {
-                            for (const e3 of parseResDir(e2.off)) {
-                                const deOff = rva2off(e3.off);
+                            const rva2 = rva1 + e2.off;
+                            const entries3 = parseResDir(rva2);
+                            for (const e3 of entries3) {
+                                const deOff = rva2off(rva2 + e3.off);
                                 if (deOff !== null && deOff + 8 <= headBuf.byteLength) {
                                     const drva = dv.getUint32(deOff, true);
                                     const dsz = dv.getUint32(deOff + 4, true);
@@ -887,7 +892,7 @@
                                 }
                             }
                         } else {
-                            const deOff = rva2off(e2.off);
+                            const deOff = rva2off(rva1 + e2.off);
                             if (deOff !== null && deOff + 8 <= headBuf.byteLength) {
                                 const drva = dv.getUint32(deOff, true);
                                 const dsz = dv.getUint32(deOff + 4, true);
