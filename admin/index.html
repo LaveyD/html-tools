@@ -873,11 +873,11 @@
 
                 for (const e1 of parseResDir(resRva)) {
                     if (e1.name !== 3 || !e1.isDir) continue;
-                    for (const e2 of parseResDir(resRva + e1.off)) {
+                    for (const e2 of parseResDir(e1.off)) {
                         let dataRange = null;
                         if (e2.isDir) {
-                            for (const e3 of parseResDir(resRva + e2.off)) {
-                                const deOff = rva2off(resRva + e3.off);
+                            for (const e3 of parseResDir(e2.off)) {
+                                const deOff = rva2off(e3.off);
                                 if (deOff !== null && deOff + 8 <= headBuf.byteLength) {
                                     const drva = dv.getUint32(deOff, true);
                                     const dsz = dv.getUint32(deOff + 4, true);
@@ -887,7 +887,7 @@
                                 }
                             }
                         } else {
-                            const deOff = rva2off(resRva + e2.off);
+                            const deOff = rva2off(e2.off);
                             if (deOff !== null && deOff + 8 <= headBuf.byteLength) {
                                 const drva = dv.getUint32(deOff, true);
                                 const dsz = dv.getUint32(deOff + 4, true);
@@ -906,6 +906,7 @@
                 // 读取 ICO 数据
                 const iconSlice = file.slice(iconFileRange.offset, iconFileRange.offset + iconFileRange.size);
                 const iconBuf = await iconSlice.arrayBuffer();
+                console.log('[icon] iconData: offset=0x' + iconFileRange.offset.toString(16) + ' size=' + iconFileRange.size + ' bufLen=' + iconBuf.byteLength);
                 const img = await icoToImage(iconBuf);
                 if (!img) throw 'Cannot decode icon';
 
@@ -930,21 +931,29 @@
         // ICO → Image element
         function icoToImage(buf) {
             return new Promise((resolve) => {
-                if (buf.byteLength < 22) { resolve(null); return; }
+                if (buf.byteLength < 22) { console.log('[icon] icoTooShort:', buf.byteLength); resolve(null); return; }
                 const dv = new DataView(buf);
-                if (dv.getUint16(2, true) !== 1) { resolve(null); return; }
+                const sig = dv.getUint16(2, true);
                 const count = dv.getUint16(4, true);
+                console.log('[icon] icoHeader: sig=', sig, 'count=', count);
+                if (sig !== 1) { resolve(null); return; }
                 let best = null;
                 for (let i = 0; i < count; i++) {
                     const off = 6 + i * 16;
+                    const w = dv.getUint8(off);
+                    const h = dv.getUint8(off + 1);
                     const bpp = dv.getUint16(off + 6, true);
                     const size = dv.getUint32(off + 12, true);
                     const dataOff = dv.getUint32(off + 16, true);
+                    console.log('[icon] icoEntry', i, 'w=' + w, 'h=' + h, 'bpp=' + bpp, 'size=' + size, 'dataOff=0x' + dataOff.toString(16));
                     if (bpp > 0 && size > 0 && size < 20000000)
                         best = { size, dataOff };
                 }
-                if (!best) { resolve(null); return; }
+                if (!best) { console.log('[icon] icoNoBestEntry'); resolve(null); return; }
+                console.log('[icon] icoBest: dataOff=0x' + best.dataOff.toString(16) + ' size=' + best.size);
                 const arr = new Uint8Array(buf.slice(best.dataOff, best.dataOff + best.size));
+                const magic = (arr[0] + 256 + arr[1]).toString(16).padStart(4, '0');
+                console.log('[icon] icoMagic: 0x' + magic + ' (PNG=8950, BMP=424D)');
                 if (arr[0] === 0x89 && arr[1] === 0x50) { // PNG
                     const blob = new Blob([arr]);
                     const url = URL.createObjectURL(blob);
