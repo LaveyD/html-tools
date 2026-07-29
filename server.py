@@ -660,21 +660,40 @@ def upload_software():
     if icon_data:
         icon_path.write_bytes(icon_data)
     else:
-        # Try manual icon upload
-        icon_file = request.files.get('icon')
-        if icon_file and icon_file.filename:
-            from PIL import Image as PILImage
-            tmp = io.BytesIO(icon_file.read())
+        # Try base64 icon from form
+        icon_b64 = request.form.get('icon_data', '')
+        if icon_b64:
             try:
-                img = PILImage.open(tmp)
-                if img.mode == 'RGBA':
+                if ',' in icon_b64:
+                    icon_b64 = icon_b64.split(',', 1)[1]
+                import base64
+                raw = base64.b64decode(icon_b64)
+                from PIL import Image as PILImage
+                img = PILImage.open(io.BytesIO(raw))
+                if img.mode != 'RGBA':
                     img = img.convert('RGBA')
                 img = img.resize((64, 64), PILImage.Resampling.LANCZOS if hasattr(PILImage, 'Resampling') else PILImage.LANCZOS)
                 buf = io.BytesIO()
                 img.save(buf, format='PNG')
                 icon_path.write_bytes(buf.getvalue())
-            except:
-                pass
+            except Exception as e:
+                print(f"Icon save error: {e}")
+        else:
+            # Try manual icon file upload (legacy)
+            icon_file = request.files.get('icon')
+            if icon_file and icon_file.filename:
+                from PIL import Image as PILImage
+                tmp = io.BytesIO(icon_file.read())
+                try:
+                    img = PILImage.open(tmp)
+                    if img.mode != 'RGBA':
+                        img = img.convert('RGBA')
+                    img = img.resize((64, 64), PILImage.Resampling.LANCZOS if hasattr(PILImage, 'Resampling') else PILImage.LANCZOS)
+                    buf = io.BytesIO()
+                    img.save(buf, format='PNG')
+                    icon_path.write_bytes(buf.getvalue())
+                except:
+                    pass
 
     # Save version
     ver_id = uuid.uuid4().hex

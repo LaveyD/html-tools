@@ -509,12 +509,17 @@
                                 <input type="text" class="upload-form-input" id="sw-version" name="version" placeholder="如：1.85.0">
                             </div>
                             <div class="upload-form-group">
-                                <label class="upload-form-label">图标（PNG/JPG，可选）</label>
-                                <input type="file" id="sw-icon" accept="image/png,image/jpeg,image/gif" style="font-size:13px">
-                                <div id="icon-preview" style="margin-top:6px;display:none">
-                                    <img id="icon-preview-img" style="width:48px;height:48px;object-fit:contain;border-radius:8px;border:1px solid var(--border)">
-                                    <span style="margin-left:8px;font-size:12px;color:var(--text-muted)">已选择</span>
+                                <label class="upload-form-label">图标</label>
+                                <div id="icon-upload-area" style="display:flex;align-items:center;gap:12px">
+                                    <div id="icon-display" style="width:64px;height:64px;border-radius:12px;border:2px dashed var(--border);display:flex;align-items:center;justify-content:center;cursor:pointer;overflow:hidden;background:var(--bg)" onclick="document.getElementById('sw-icon-file').click()" title="点击上传图标">
+                                        <i class="fas fa-image" style="font-size:24px;color:var(--text-muted)"></i>
+                                    </div>
+                                    <div style="flex:1">
+                                        <div id="icon-status" style="font-size:12px;color:var(--text-muted)">上传文件后自动提取，或点击左侧上传</div>
+                                        <input type="hidden" id="sw-icon-data" name="icon_data">
+                                    </div>
                                 </div>
+                                <input type="file" id="sw-icon-file" accept="image/png,image/jpeg,image/gif" style="display:none">
                             </div>
                             <div class="upload-form-group">
                                 <label class="upload-form-label">上传者</label>
@@ -766,7 +771,203 @@
             
             // Auto-parse filename
             parseFileName(file.name);
+            
+            // Auto-extract icon from .exe (pure frontend, no file upload needed)
+            extractIconInBrowser(file);
         }
+
+        // 前端直接提取 .exe 图标，不传文件到后端
+        async function extractIconInBrowser(file) {
+            const display = document.getElementById('icon-display');
+            const status = document.getElementById('icon-status');
+
+            if (!file.name.match(/\.(exe|dll|msi)$/i)) {
+                status.textContent = '非 .exe/.dll/.msi 文件，请手动上传图标';
+                return;
+            }
+
+            status.textContent = '正在提取图标...';
+            status.style.color = 'var(--primary)';
+
+            try {
+                // 只读前 64KB（PE 头 + section 头足够解析资源目录）
+                const headSlice = file.slice(0, 65536);
+                const headBuf = await headSlice.arrayBuffer();
+                const dv = new DataView(headBuf);
+
+                // MZ signature
+                if (dv.getUint16(0, true) !== 0x5A4D) throw 'No MZ';
+                const peOffset = dv.getUint32(0x3C, true);
+                if (dv.getUint32(peOffset, true) !== 0x00004550) throw 'No PE';
+
+                const coff = peOffset + 4;
+                const numSections = dv.getUint16(coff + 2, true);
+                const optHdrSize = dv.getUint16(coff + 16, true);
+                const magic = dv.getUint16(coff + 20, true);
+
+                // 资源目录 offset (entry 2)
+                let ddOffset;
+                if (magic === 0x10b) ddOffset = coff + 20 + 96;
+                else if (magic === 0x20b) ddOffset = coff + 20 + 110;
+                else throw 'Bad magic';
+
+                const resRva = dv.getUint32(ddOffset, true);
+                if (!resRva) throw 'No resource';
+
+                // Section 表 — RVA → 文件偏移
+                const secOffset = coff + 20 + optHdrSize;
+                const sections = [];
+                for (let i = 0; i < numSections; i++) {
+                    const base = secOffset + i * 40;
+                    if (base + 24 > headBuf.byteLength) break;
+                    const va = dv.getUint32(base + 12, true);
+                    const vs = dv.getUint32(base + 8, true);
+                    const ro = dv.getUint32(base + 20, true);
+                    const rs = dv.getUint32(base + 16, true);
+                    sections.push({ va, vs, ro, rs });
+                }
+
+                const rva2off = (rva) => {
+                    for (const s of sections) {
+                        if (rva >= s.va && rva < s.va + Math.max(s.vs, s.rs))
+                            return s.ro + (rva - s.va);
+                    }
+                    return null;
+                };
+
+                // 解析资源目录
+                const parseResDir = (rva) => {
+                    const off = rva2off(rva);
+                    if (off === null || off + 16 > headBuf.byteLength) return [];
+                    const named = dv.getUint16(off + 12, true);
+                    const idCnt = dv.getUint16(off + 14, true);
+                    const entries = [];
+                    for (let i = 0; i < named + idCnt; i++) {
+                        const b = off + 16 + i * 8;
+                        if (b + 8 > headBuf.byteLength) break;
+                        entries.push({
+                            name: dv.getUint32(b, true),
+                            off: dv.getUint32(b + 4, true) & 0x7FFFFFFF,
+                            isDir: (dv.getUint32(b + 4, true) & 0x80000000) !== 0
+                        });
+                    }
+                    return entries;
+                };
+
+                // 找 RT_ICON (id=3)
+                let iconFileRange = null;
+
+                for (const e1 of parseResDir(resRva)) {
+                    if (e1.name !== 3 || !e1.isDir) continue;
+                    for (const e2 of parseResDir(resRva + e1.off)) {
+                        let dataRange = null;
+                        if (e2.isDir) {
+                            for (const e3 of parseResDir(resRva + e2.off)) {
+                                const deOff = rva2off(resRva + e3.off);
+                                if (deOff !== null && deOff + 8 <= headBuf.byteLength) {
+                                    const drva = dv.getUint32(deOff, true);
+                                    const dsz = dv.getUint32(deOff + 4, true);
+                                    const doff = rva2off(drva);
+                                    if (doff !== null && dsz > 0 && dsz < 20000000)
+                                        dataRange = { offset: doff, size: dsz };
+                                }
+                            }
+                        } else {
+                            const deOff = rva2off(resRva + e2.off);
+                            if (deOff !== null && deOff + 8 <= headBuf.byteLength) {
+                                const drva = dv.getUint32(deOff, true);
+                                const dsz = dv.getUint32(deOff + 4, true);
+                                const doff = rva2off(drva);
+                                if (doff !== null && dsz > 0 && dsz < 20000000)
+                                    dataRange = { offset: doff, size: dsz };
+                            }
+                        }
+                        if (dataRange) { iconFileRange = dataRange; break; }
+                    }
+                    if (iconFileRange) break;
+                }
+
+                if (!iconFileRange) throw 'No icon resource';
+
+                // 读取 ICO 数据
+                const iconSlice = file.slice(iconFileRange.offset, iconFileRange.offset + iconFileRange.size);
+                const iconBuf = await iconSlice.arrayBuffer();
+                const img = await icoToImage(iconBuf);
+                if (!img) throw 'Cannot decode icon';
+
+                // Resize to 64x64 via canvas
+                const canvas = document.createElement('canvas');
+                canvas.width = 64; canvas.height = 64;
+                canvas.getContext('2d').drawImage(img, 0, 0, 64, 64);
+                const b64 = canvas.toDataURL('image/png');
+
+                display.innerHTML = `<img src="${b64}" style="width:100%;height:100%;object-fit:contain">`;
+                display.style.border = '2px solid var(--primary)';
+                status.textContent = '✅ 已自动提取，点击左侧可更换';
+                status.style.color = 'var(--green)';
+                document.getElementById('sw-icon-data').value = b64;
+
+            } catch (e) {
+                status.textContent = '⚠️ 自动提取失败，请点击左侧手动上传图标';
+                status.style.color = 'var(--amber)';
+            }
+        }
+
+        // ICO → Image element
+        function icoToImage(buf) {
+            return new Promise((resolve) => {
+                if (buf.byteLength < 22) { resolve(null); return; }
+                const dv = new DataView(buf);
+                if (dv.getUint16(2, true) !== 1) { resolve(null); return; }
+                const count = dv.getUint16(4, true);
+                let best = null;
+                for (let i = 0; i < count; i++) {
+                    const off = 6 + i * 16;
+                    const bpp = dv.getUint16(off + 6, true);
+                    const size = dv.getUint32(off + 12, true);
+                    const dataOff = dv.getUint32(off + 16, true);
+                    if (bpp > 0 && size > 0 && size < 20000000)
+                        best = { size, dataOff };
+                }
+                if (!best) { resolve(null); return; }
+                const arr = new Uint8Array(buf.slice(best.dataOff, best.dataOff + best.size));
+                if (arr[0] === 0x89 && arr[1] === 0x50) { // PNG
+                    const blob = new Blob([arr]);
+                    const url = URL.createObjectURL(blob);
+                    const img = new Image();
+                    img.onload = () => { URL.revokeObjectURL(url); resolve(img); };
+                    img.onerror = () => { URL.revokeObjectURL(url); resolve(null); };
+                    img.src = url;
+                } else if (arr[0] === 0x42 && arr[1] === 0x4D) { // BMP
+                    const blob = new Blob([arr]);
+                    const url = URL.createObjectURL(blob);
+                    const img = new Image();
+                    img.onload = () => { URL.revokeObjectURL(url); resolve(img); };
+                    img.onerror = () => { URL.revokeObjectURL(url); resolve(null); };
+                    img.src = url;
+                } else {
+                    resolve(null);
+                }
+            });
+        }
+
+        // Manual icon upload / replacement
+        document.getElementById('sw-icon-file').addEventListener('change', function() {
+            const file = this.files[0];
+            if (!file) return;
+            
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const b64 = e.target.result;
+                const display = document.getElementById('icon-display');
+                display.innerHTML = `<img src="${b64}" style="width:100%;height:100%;object-fit:contain">`;
+                display.style.border = '2px solid var(--primary)';
+                document.getElementById('icon-status').textContent = '✅ 已手动选择图标，点击可更换';
+                document.getElementById('icon-status').style.color = 'var(--green)';
+                document.getElementById('sw-icon-data').value = b64;
+            };
+            reader.readAsDataURL(file);
+        });
 
         async function parseFileName(filename) {
             try {
@@ -796,6 +997,14 @@
             fileInput.value = '';
             fileSelected.classList.remove('show');
             dropZone.style.display = '';
+            // Reset icon
+            const display = document.getElementById('icon-display');
+            display.innerHTML = `<i class="fas fa-image" style="font-size:24px;color:var(--text-muted)"></i>`;
+            display.style.border = '2px dashed var(--border)';
+            document.getElementById('icon-status').textContent = '上传文件后自动提取，或点击左侧上传';
+            document.getElementById('icon-status').style.color = 'var(--text-muted)';
+            document.getElementById('sw-icon-data').value = '';
+            document.getElementById('sw-icon-file').value = '';
         }
 
         document.getElementById('tags-input').addEventListener('keydown', e => {
@@ -841,9 +1050,9 @@
             fd.append('uploader', document.getElementById('sw-uploader').value.trim());
             fd.append('tags', JSON.stringify(tags));
             fd.append('file', fileInput.files[0]);
-            const iconInput = document.getElementById('sw-icon');
-            if (iconInput.files.length) {
-                fd.append('icon', iconInput.files[0]);
+            const iconB64 = document.getElementById('sw-icon-data').value;
+            if (iconB64) {
+                fd.append('icon_data', iconB64);
             }
 
             try {
