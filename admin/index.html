@@ -810,16 +810,6 @@
                 const magic = dv.getUint16(coff + 20, true);
                 console.log('[icon] sections:', numSections, 'optHdrSize:', optHdrSize, 'magic:', '0x' + magic.toString(16));
 
-                // 资源目录 offset (entry 2)
-                let ddOffset;
-                if (magic === 0x10b) ddOffset = coff + 20 + 96;
-                else if (magic === 0x20b) ddOffset = coff + 20 + 110;
-                else throw 'Bad magic 0x' + magic.toString(16);
-
-                const resRva = dv.getUint32(ddOffset, true);
-                console.log('[icon] resRva:', '0x' + resRva.toString(16), 'ddOffset:', '0x' + ddOffset.toString(16));
-                if (!resRva) throw 'No resource';
-
                 // Section 表 — RVA → 文件偏移
                 const secOffset = coff + 20 + optHdrSize;
                 console.log('[icon] secOffset:', '0x' + secOffset.toString(16));
@@ -835,6 +825,15 @@
                     sections.push({ name, va, vs, ro, rs });
                     console.log('[icon] sec', i, name, 'va=0x' + va.toString(16), 'vs=' + vs, 'ro=0x' + ro.toString(16), 'rs=' + rs);
                 }
+
+                // 直接通过 section 名称找到 .rsrc，跳过易错的数据目录偏移计算
+                const rsrcSec = sections.find(s => {
+                    const n = s.name.trim();
+                    return n === '.rsrc' || n === 'rsrc' || n.endsWith('.rsrc') || n.endsWith('.Rsrc');
+                });
+                if (!rsrcSec) throw 'No .rsrc section found';
+                const resRva = rsrcSec.va;
+                console.log('[icon] .rsrc found: va=0x' + resRva.toString(16) + ' ro=0x' + rsrcSec.ro.toString(16));
 
                 const rva2off = (rva) => {
                     for (const s of sections) {
