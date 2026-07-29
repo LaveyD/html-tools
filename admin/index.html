@@ -791,8 +791,9 @@
 
             try {
                 console.log('[icon] file:', file.name, 'size:', file.size);
-                // 只读前 64KB（PE 头 + section 头足够解析资源目录）
-                const headSlice = file.slice(0, 65536);
+                // 读取足够范围覆盖 PE 头 + .rsrc section（通常在前 1MB 内）
+                const readSize = Math.min(file.size, 1048576); // 1MB max
+                const headSlice = file.slice(0, readSize);
                 const headBuf = await headSlice.arrayBuffer();
                 const dv = new DataView(headBuf);
                 console.log('[icon] read 64KB head');
