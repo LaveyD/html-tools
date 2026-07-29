@@ -868,40 +868,40 @@
                     return entries;
                 };
 
-                // 找 RT_ICON (id=3) — 子项 RVA 相对于父目录 RVA
-                let iconFileRange = null;
-
-                const entries1 = parseResDir(resRva);
-                for (const e1 of entries1) {
-                    if (e1.name !== 3 || !e1.isDir) continue;
-                    const rva1 = resRva + e1.off;
-                    const entries2 = parseResDir(rva1);
-                    for (const e2 of entries2) {
-                        let dataRange = null;
-                        if (e2.isDir) {
-                            const rva2 = rva1 + e2.off;
-                            const entries3 = parseResDir(rva2);
-                            for (const e3 of entries3) {
-                                const deOff = rva2off(rva2 + e3.off);
-                                if (deOff !== null && deOff + 8 <= headBuf.byteLength) {
-                                    const drva = dv.getUint32(deOff, true);
-                                    const dsz = dv.getUint32(deOff + 4, true);
-                                    const doff = rva2off(drva);
-                                    if (doff !== null && dsz > 0 && dsz < 20000000)
-                                        dataRange = { offset: doff, size: dsz };
-                                }
-                            }
+                // 递归查找图标 — dir entry: RVA 相对父目录, data entry: RVA 绝对
+                function findIconData(rva, nameFilter) {
+                    const entries = parseResDir(rva);
+                    if (!entries || entries.length === 0) return null;
+                    for (const e of entries) {
+                        if (nameFilter !== null && e.name !== nameFilter) continue;
+                        if (e.isDir) {
+                            const result = findIconData(rva + e.off, null);
+                            if (result) return result;
                         } else {
-                            const deOff = rva2off(rva1 + e2.off);
+                            // data entry: e.off is ABSOLUTE RVA to IMAGE_RESOURCE_DATA_ENTRY
+                            const deOff = rva2off(e.off);
                             if (deOff !== null && deOff + 8 <= headBuf.byteLength) {
                                 const drva = dv.getUint32(deOff, true);
                                 const dsz = dv.getUint32(deOff + 4, true);
                                 const doff = rva2off(drva);
-                                if (doff !== null && dsz > 0 && dsz < 20000000)
-                                    dataRange = { offset: doff, size: dsz };
+                                if (doff !== null && dsz > 0 && dsz < 20000000) {
+                                    return { offset: doff, size: dsz };
+                                }
                             }
                         }
-                        if (dataRange) { iconFileRange = dataRange; break; }
+                    }
+                    return null;
+                }
+
+                // 查找 RT_ICON (id=3) 或 RT_GROUP_ICON (id=14)
+                let iconFileRange = null;
+                const entries1 = parseResDir(resRva);
+                for (const e1 of entries1) {
+                    if (e1.name !== 3 && e1.name !== 14) continue;
+                    if (e1.isDir) {
+                        iconFileRange = findIconData(resRva + e1.off, null);
+                    } else {
+                        iconFileRange = findIconData(e1.off, null);
                     }
                     if (iconFileRange) break;
                 }
