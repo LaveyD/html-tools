@@ -32,134 +32,46 @@ ICON_DIR.mkdir(exist_ok=True)
 
 # ─── Icon Extraction ───────────────────────────────────────
 def extract_exe_icon(exe_path, size=64):
-    """Extract icon from .exe/dll by parsing PE resource directory directly."""
+    """Extract icon from .exe/.dll using pefile + Pillow."""
     if not HAS_ICON_EXTRACT:
         return None
     try:
-        with open(exe_path, 'rb') as f:
-            data = f.read()
+        import pefile
+        pe = pefile.PE(str(exe_path))
 
-        if len(data) < 64 or data[:2] != b'MZ':
-            return None
-
-        # DOS header -> PE offset
-        pe_offset = struct.unpack_from('<I', data, 60)[0]
-        if data[pe_offset:pe_offset+4] != b'PE\x00\x00':
-            return None
-
-        # COFF header
-        coff = pe_offset + 4
-        num_sections = struct.unpack_from('<H', data, coff + 2)[0]
-        opt_hdr_size = struct.unpack_from('<H', data, coff + 16)[0]
-
-        # Optional header -> find resource directory
-        magic = struct.unpack_from('<H', data, coff + 20)[0]
-        if magic == 0x10b:  # PE32
-            # Magic(2) + SizeOfCode(4) + SizeOfInitData(4) + SizeOfUninitData(4)
-            # + AddressOfEntryPoint(4) + BaseOfCode(4) + BaseOfData(4)
-            # + ImageBase(4) + SectionAlignment(4) + FileAlignment(4)
-            # + Win32VersionValue(8) + SizeOfImage(4) + SizeOfHeaders(4)
-            # + CheckSum(4) + Subsystem(2) + DllCharacteristics(2) + ...
-            # Data directories start at: OptionalHeader + 2(magic) + 94
-            dd_offset = coff + 20 + 96  # 2 + 94
-        elif magic == 0x20b:  # PE32+
-            # Magic(2) + SizeOfCode(4) + SizeOfInitData(4) + SizeOfUninitData(4)
-            # + AddressOfEntryPoint(4) + BaseOfCode(4)
-            # + ImageBase(8) + SectionAlignment(4) + FileAlignment(4)
-            # + Win32VersionValue(8) + SizeOfImage(4) + SizeOfHeaders(4)
-            # + CheckSum(4) + Subsystem(2) + DllCharacteristics(2) + ...
-            # Data directories start at: OptionalHeader + 2(magic) + 108
-            dd_offset = coff + 20 + 110  # 2 + 108
-        else:
-            return None
-
-        # Data directory entry 2 = resource
-        res_rva, res_size = struct.unpack_from('<II', data, dd_offset)
-        if not res_rva:
-            return None
-
-        # Parse sections for RVA -> file offset
-        sections = []
-        sec_offset = coff + 20 + opt_hdr_size
-        for i in range(num_sections):
-            base = sec_offset + i * 40
-            vaddr = struct.unpack_from('<I', data, base + 12)[0]
-            vsize = struct.unpack_from('<I', data, base + 8)[0]
-            roff = struct.unpack_from('<I', data, base + 20)[0]
-            rsize = struct.unpack_from('<I', data, base + 16)[0]
-            sections.append((vaddr, vsize, roff, rsize))
-
-        def rva2off(rva):
-            for va, vs, ro, rs in sections:
-                if va <= rva < va + max(vs, rs):
-                    return ro + (rva - va)
-            return None
-
-        def read_u32(off):
-            return struct.unpack_from('<I', data, off)[0]
-
-        # Navigate resource directory
-        def parse_res_dir(rva):
-            off = rva2off(rva)
-            if off is None:
-                return []
-            named = struct.unpack_from('<H', data, off + 12)[0]
-            id_cnt = struct.unpack_from('<H', data, off + 14)[0]
-            entries = []
-            for i in range(named + id_cnt):
-                base = off + 16 + i * 8
-                name = struct.unpack_from('<I', data, base)[0]
-                off_or_data = struct.unpack_from('<I', data, base + 4)[0]
-                is_dir = bool(off_or_data & 0x80000000)
-                real_off = off_or_data & 0x7FFFFFFF
-                entries.append((name, real_off, is_dir))
-            return entries
-
-        base_rva = res_rva
-        # Level 1: find RT_ICON (3)
-        level1 = parse_res_dir(base_rva)
+        # Look for RT_ICON (3) or RT_GROUP_ICON (14)
         icon_data_list = []
+        for resource in pe.DIRECTORY_ENTRY_RESOURCE.entries:
+            rtype = resource.id
+            if rtype not in (pefile.RESOURCE_TYPE['RT_ICON'],
+                             pefile.RESOURCE_TYPE['RT_GROUP_ICON']):
+                continue
+            # Walk to data entry
+            for sub in resource.directory.entries:
+                if hasattr(sub, 'directory'):
+                    for sub2 in sub.directory.entries:
+                        if hasattr(sub2, 'data'):
+                            icon_data_list.append(sub2.data)
+                elif hasattr(sub, 'data'):
+                    icon_data_list.append(sub.data)
 
-        def get_res_data(rva):
-            """Parse IMAGE_RESOURCE_DATA_ENTRY at RVA and return raw bytes."""
-            off = rva2off(rva)
-            if off is None:
-                return None
-            # IMAGE_RESOURCE_DATA_ENTRY: DataRVA(4) + Size(4) + CodePage(4) + Reserved(4)
-            data_rva = struct.unpack_from('<I', data, off)[0]
-            data_size = struct.unpack_from('<I', data, off + 4)[0]
-            data_off = rva2off(data_rva)
-            if data_off is None:
-                return None
-            return data[data_off:data_off + data_size]
-
-        for name, off, is_dir in level1:
-            if name == 3 and is_dir:  # RT_ICON
-                level2 = parse_res_dir(base_rva + off)
-                for icon_id, data_off, is_data in level2:
-                    if is_data:
-                        d = get_res_data(base_rva + (data_off & 0x7FFFFFFF))
-                        if d:
-                            icon_data_list.append(d)
-                    else:
-                        level3 = parse_res_dir(base_rva + data_off)
-                        for lang_id, lang_data_off, _ in level3:
-                            d = get_res_data(base_rva + (lang_data_off & 0x7FFFFFFF))
-                            if d:
-                                icon_data_list.append(d)
-
-        if not icon_data_list:
-            return None
-
-        # Try each as ICO image
-        for raw in icon_data_list:
+        # Try to decode as image with Pillow
+        for entry in icon_data_list:
             try:
+                rva = entry.struct.OffsetToData
+                sz = entry.struct.Size
+                if sz <= 0 or sz > 20000000:
+                    continue
+                raw = pe.get_memory_mapped_image()[rva:rva + sz]
                 img = Image.open(io.BytesIO(raw))
-                img = img.resize((size, size), Image.LANCZOS)
+                if img.mode != 'RGBA':
+                    img = img.convert('RGBA')
+                img = img.resize((size, size), Image.Resampling.LANCZOS if hasattr(Image, 'Resampling') else Image.Resampling.LANCZOS)
                 buf = io.BytesIO()
                 img.save(buf, format='PNG')
+                pe.close()
                 return buf.getvalue()
-            except:
+            except Exception:
                 continue
 
         return None
@@ -589,6 +501,39 @@ def parse_filename():
             'arch': arch,
         }
     })
+
+
+@app.route('/api/software/extract-icon', methods=['POST'])
+@require_admin
+def extract_icon_api():
+    """Extract icon from uploaded .exe file header (1MB max). Returns base64 PNG."""
+    file = request.files.get('file')
+    if not file or not file.filename:
+        return jsonify({'code': 400, 'message': '缺少文件'}), 400
+
+    fn = file.filename.lower()
+    if not fn.endswith(('.exe', '.dll', '.msi')):
+        return jsonify({'code': 400, 'message': '仅支持 .exe/.dll/.msi'}), 400
+
+    import tempfile
+    import base64
+
+    # Save temp file (read first 1MB only — that's enough for resource section)
+    with tempfile.NamedTemporaryFile(suffix='.exe', delete=False) as tmp:
+        data = file.read(1048576)  # 1MB max
+        tmp.write(data)
+        tmp_path = tmp.name
+
+    try:
+        icon_data = extract_exe_icon(tmp_path, size=64)
+        if icon_data:
+            b64 = base64.b64encode(icon_data).decode('ascii')
+            return jsonify({'code': 0, 'icon': b64})
+        else:
+            return jsonify({'code': 404, 'message': '未找到图标'})
+    finally:
+        import os
+        os.unlink(tmp_path)
 
 
 @app.route('/api/software/upload', methods=['POST'])

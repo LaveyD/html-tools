@@ -776,7 +776,7 @@
             extractIconInBrowser(file);
         }
 
-        // 前端直接提取 .exe 图标，不传文件到后端
+        // 调用后端提取图标（只传文件头 1MB）
         async function extractIconInBrowser(file) {
             const display = document.getElementById('icon-display');
             const status = document.getElementById('icon-status');
@@ -790,196 +790,31 @@
             status.style.color = 'var(--primary)';
 
             try {
-                console.log('[icon] file:', file.name, 'size:', file.size);
-                // 读取足够范围覆盖 PE 头 + .rsrc section（通常在前 1MB 内）
-                const readSize = Math.min(file.size, 1048576); // 1MB max
-                const headSlice = file.slice(0, readSize);
-                const headBuf = await headSlice.arrayBuffer();
-                const dv = new DataView(headBuf);
-                console.log('[icon] read 64KB head');
-
-                // MZ signature
-                if (dv.getUint16(0, true) !== 0x5A4D) throw 'No MZ';
-                const peOffset = dv.getUint32(0x3C, true);
-                console.log('[icon] PE offset:', '0x' + peOffset.toString(16));
-                if (dv.getUint32(peOffset, true) !== 0x00004550) throw 'No PE';
-
-                const coff = peOffset + 4;
-                const numSections = dv.getUint16(coff + 2, true);
-                const optHdrSize = dv.getUint16(coff + 16, true);
-                const magic = dv.getUint16(coff + 20, true);
-                console.log('[icon] sections:', numSections, 'optHdrSize:', optHdrSize, 'magic:', '0x' + magic.toString(16));
-
-                // Section 表 — RVA → 文件偏移
-                const secOffset = coff + 20 + optHdrSize;
-                console.log('[icon] secOffset:', '0x' + secOffset.toString(16));
-                const sections = [];
-                for (let i = 0; i < numSections; i++) {
-                    const base = secOffset + i * 40;
-                    if (base + 24 > headBuf.byteLength) break;
-                    const va = dv.getUint32(base + 12, true);
-                    const vs = dv.getUint32(base + 8, true);
-                    const ro = dv.getUint32(base + 20, true);
-                    const rs = dv.getUint32(base + 16, true);
-                    const name = new TextDecoder().decode(new Uint8Array(headBuf.slice(base, base + 8))).replace(/\0/g, ' ');
-                    sections.push({ name, va, vs, ro, rs });
-                    console.log('[icon] sec', i, name, 'va=0x' + va.toString(16), 'vs=' + vs, 'ro=0x' + ro.toString(16), 'rs=' + rs);
-                }
-
-                // 直接通过 section 名称找到 .rsrc，跳过易错的数据目录偏移计算
-                const rsrcSec = sections.find(s => {
-                    const n = s.name.trim();
-                    return n === '.rsrc' || n === 'rsrc' || n.endsWith('.rsrc') || n.endsWith('.Rsrc');
+                const token = localStorage.getItem('admin_token');
+                const headSlice = file.slice(0, 1048576); // 1MB max
+                const fd = new FormData();
+                fd.append('file', new File([headSlice], file.name));
+                const res = await fetch('/api/software/extract-icon', {
+                    method: 'POST',
+                    headers: { 'X-Admin-Token': token },
+                    body: fd
                 });
-                if (!rsrcSec) throw 'No .rsrc section found';
-                const resRva = rsrcSec.va;
-                console.log('[icon] .rsrc found: va=0x' + resRva.toString(16) + ' ro=0x' + rsrcSec.ro.toString(16));
-
-                const rva2off = (rva) => {
-                    for (const s of sections) {
-                        const end = s.va + Math.max(s.vs, s.rs);
-                        if (rva >= s.va && rva < end) {
-                            const mapped = s.ro + (rva - s.va);
-                            console.log('[icon] rva2off 0x' + rva.toString(16) + ' -> 0x' + mapped.toString(16), 'via', s.name);
-                            return mapped;
-                        }
-                    }
-                    console.log('[icon] rva2off FAILED for 0x' + rva.toString(16));
-                    return null;
-                };
-
-                // 解析资源目录
-                const parseResDir = (rva) => {
-                    const off = rva2off(rva);
-                    if (off === null || off + 16 > headBuf.byteLength) return [];
-                    const named = dv.getUint16(off + 12, true);
-                    const idCnt = dv.getUint16(off + 14, true);
-                    const entries = [];
-                    for (let i = 0; i < named + idCnt; i++) {
-                        const b = off + 16 + i * 8;
-                        if (b + 8 > headBuf.byteLength) break;
-                        entries.push({
-                            name: dv.getUint32(b, true),
-                            off: dv.getUint32(b + 4, true) & 0x7FFFFFFF,
-                            isDir: (dv.getUint32(b + 4, true) & 0x80000000) !== 0
-                        });
-                    }
-                    console.log('[icon] parseResDir rva=0x' + rva.toString(16), 'named=' + named, 'idCnt=' + idCnt);
-                    return entries;
-                };
-
-                // 在 .rsrc section 中搜索 PNG / BMP / DIB 图像数据
-                console.log('[icon] searching for PNG/BMP/DIB in .rsrc section');
-                let iconFileRange = null;
-                const rsrcOff = rsrcSec.ro;
-                const rsrcSize = Math.max(rsrcSec.rs, rsrcSec.vs);
-                const neededSize = rsrcOff + rsrcSize;
-                const srcSlice = file.slice(0, Math.min(file.size, neededSize));
-                const srcBuf = await srcSlice.arrayBuffer();
-                const dv2 = new DataView(srcBuf);
-                const u8 = new Uint8Array(srcBuf);
-
-                // 在 .rsrc 范围内搜索 PNG(8950) / BMP(424D) / DIB(hdr=40/12/100/108/124)
-                for (let i = rsrcOff; i < rsrcOff + rsrcSize - 8 && i < srcBuf.byteLength - 8; i++) {
-                    // PNG: 89 50 4E 47
-                    if (u8[i] === 0x89 && u8[i+1] === 0x50 && u8[i+2] === 0x4E && u8[i+3] === 0x47) {
-                        // Walk chunks to find IEND
-                        let p = i + 8;
-                        while (p + 8 <= srcBuf.byteLength) {
-                            const cl = dv2.getUint32(p, false); // big-endian
-                            if (cl > 10000000) break;
-                            p += 12 + cl;
-                            if (u8[p-8]===0x49 && u8[p-7]===0x45 && u8[p-6]===0x4E && u8[p-5]===0x44) {
-                                // IEND found
-                                iconFileRange = { offset: i, size: p - i };
-                                console.log('[icon] found PNG at 0x' + i.toString(16) + ' size=' + iconFileRange.size);
-                                break;
-                            }
-                        }
-                        if (iconFileRange) break;
-                    }
-                    // BMP: 42 4D
-                    if (u8[i] === 0x42 && u8[i+1] === 0x4D) {
-                        const bmpSz = dv2.getUint32(i + 2, true);
-                        if (bmpSz > 54 && bmpSz < 10000000 && i + bmpSz <= srcBuf.byteLength) {
-                            iconFileRange = { offset: i, size: bmpSz };
-                            console.log('[icon] found BMP at 0x' + i.toString(16) + ' size=' + bmpSz);
-                            break;
-                        }
-                    }
+                const json = await res.json();
+                if (json.code === 0 && json.icon) {
+                    const b64 = 'data:image/png;base64,' + json.icon;
+                    display.innerHTML = `<img src="${b64}" style="width:100%;height:100%;object-fit:contain">`;
+                    display.style.border = '2px solid var(--primary)';
+                    status.textContent = '✅ 已自动提取，点击左侧可更换';
+                    status.style.color = 'var(--green)';
+                    document.getElementById('sw-icon-data').value = b64;
+                } else {
+                    throw json.message || '提取失败';
                 }
-
-                if (!iconFileRange) throw 'No icon resource';
-
-                // 读取 ICO 数据
-                const iconSlice = file.slice(iconFileRange.offset, iconFileRange.offset + iconFileRange.size);
-                const iconBuf = await iconSlice.arrayBuffer();
-                console.log('[icon] iconData: offset=0x' + iconFileRange.offset.toString(16) + ' size=' + iconFileRange.size + ' bufLen=' + iconBuf.byteLength);
-                const img = await icoToImage(iconBuf);
-                if (!img) throw 'Cannot decode icon';
-
-                // Resize to 64x64 via canvas
-                const canvas = document.createElement('canvas');
-                canvas.width = 64; canvas.height = 64;
-                canvas.getContext('2d').drawImage(img, 0, 0, 64, 64);
-                const b64 = canvas.toDataURL('image/png');
-
-                display.innerHTML = `<img src="${b64}" style="width:100%;height:100%;object-fit:contain">`;
-                display.style.border = '2px solid var(--primary)';
-                status.textContent = '✅ 已自动提取，点击左侧可更换';
-                status.style.color = 'var(--green)';
-                document.getElementById('sw-icon-data').value = b64;
-
             } catch (e) {
+                console.error('[icon] extract failed:', e);
                 status.textContent = '⚠️ 自动提取失败，请点击左侧手动上传图标';
                 status.style.color = 'var(--amber)';
             }
-        }
-
-        // ICO → Image element
-        function icoToImage(buf) {
-            return new Promise((resolve) => {
-                if (buf.byteLength < 22) { console.log('[icon] icoTooShort:', buf.byteLength); resolve(null); return; }
-                const dv = new DataView(buf);
-                const sig = dv.getUint16(2, true);
-                const count = dv.getUint16(4, true);
-                console.log('[icon] icoHeader: sig=', sig, 'count=', count);
-                if (sig !== 1) { resolve(null); return; }
-                let best = null;
-                for (let i = 0; i < count; i++) {
-                    const off = 6 + i * 16;
-                    const w = dv.getUint8(off);
-                    const h = dv.getUint8(off + 1);
-                    const bpp = dv.getUint16(off + 6, true);
-                    const size = dv.getUint32(off + 12, true);
-                    const dataOff = dv.getUint32(off + 16, true);
-                    console.log('[icon] icoEntry', i, 'w=' + w, 'h=' + h, 'bpp=' + bpp, 'size=' + size, 'dataOff=0x' + dataOff.toString(16));
-                    if (bpp > 0 && size > 0 && size < 20000000)
-                        best = { size, dataOff };
-                }
-                if (!best) { console.log('[icon] icoNoBestEntry'); resolve(null); return; }
-                console.log('[icon] icoBest: dataOff=0x' + best.dataOff.toString(16) + ' size=' + best.size);
-                const arr = new Uint8Array(buf.slice(best.dataOff, best.dataOff + best.size));
-                const magic = (arr[0] + 256 + arr[1]).toString(16).padStart(4, '0');
-                console.log('[icon] icoMagic: 0x' + magic + ' (PNG=8950, BMP=424D)');
-                if (arr[0] === 0x89 && arr[1] === 0x50) { // PNG
-                    const blob = new Blob([arr]);
-                    const url = URL.createObjectURL(blob);
-                    const img = new Image();
-                    img.onload = () => { URL.revokeObjectURL(url); resolve(img); };
-                    img.onerror = () => { URL.revokeObjectURL(url); resolve(null); };
-                    img.src = url;
-                } else if (arr[0] === 0x42 && arr[1] === 0x4D) { // BMP
-                    const blob = new Blob([arr]);
-                    const url = URL.createObjectURL(blob);
-                    const img = new Image();
-                    img.onload = () => { URL.revokeObjectURL(url); resolve(img); };
-                    img.onerror = () => { URL.revokeObjectURL(url); resolve(null); };
-                    img.src = url;
-                } else {
-                    resolve(null);
-                }
-            });
         }
 
         // Manual icon upload / replacement
