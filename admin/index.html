@@ -509,6 +509,14 @@
                                 <input type="text" class="upload-form-input" id="sw-version" name="version" placeholder="如：1.85.0">
                             </div>
                             <div class="upload-form-group">
+                                <label class="upload-form-label">图标（PNG/JPG，可选）</label>
+                                <input type="file" id="sw-icon" accept="image/png,image/jpeg,image/gif" style="font-size:13px">
+                                <div id="icon-preview" style="margin-top:6px;display:none">
+                                    <img id="icon-preview-img" style="width:48px;height:48px;object-fit:contain;border-radius:8px;border:1px solid var(--border)">
+                                    <span style="margin-left:8px;font-size:12px;color:var(--text-muted)">已选择</span>
+                                </div>
+                            </div>
+                            <div class="upload-form-group">
                                 <label class="upload-form-label">上传者</label>
                                 <input type="text" class="upload-form-input" id="sw-uploader" name="uploader" placeholder="你的名字">
                             </div>
@@ -833,6 +841,10 @@
             fd.append('uploader', document.getElementById('sw-uploader').value.trim());
             fd.append('tags', JSON.stringify(tags));
             fd.append('file', fileInput.files[0]);
+            const iconInput = document.getElementById('sw-icon');
+            if (iconInput.files.length) {
+                fd.append('icon', iconInput.files[0]);
+            }
 
             try {
                 const xhr = new XMLHttpRequest();

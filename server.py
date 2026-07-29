@@ -50,16 +50,26 @@ def extract_exe_icon(exe_path, size=64):
         # COFF header
         coff = pe_offset + 4
         num_sections = struct.unpack_from('<H', data, coff + 2)[0]
-        opt_hdr_size = struct.unpack_from('<H', data, coff + 20)[0]
+        opt_hdr_size = struct.unpack_from('<H', data, coff + 16)[0]
 
         # Optional header -> find resource directory
-        opt_hdr = coff + 20 + 2  # skip magic
         magic = struct.unpack_from('<H', data, coff + 20)[0]
         if magic == 0x10b:  # PE32
-            res_entry = opt_hdr + 96  # entry index 2 (resource), 8 bytes each, offset from start of optional header fields
-            dd_offset = coff + 20 + 2 + 96  # magic(2) + 96 bytes to data directories
+            # Magic(2) + SizeOfCode(4) + SizeOfInitData(4) + SizeOfUninitData(4)
+            # + AddressOfEntryPoint(4) + BaseOfCode(4) + BaseOfData(4)
+            # + ImageBase(4) + SectionAlignment(4) + FileAlignment(4)
+            # + Win32VersionValue(8) + SizeOfImage(4) + SizeOfHeaders(4)
+            # + CheckSum(4) + Subsystem(2) + DllCharacteristics(2) + ...
+            # Data directories start at: OptionalHeader + 2(magic) + 94
+            dd_offset = coff + 20 + 96  # 2 + 94
         elif magic == 0x20b:  # PE32+
-            dd_offset = coff + 20 + 2 + 112
+            # Magic(2) + SizeOfCode(4) + SizeOfInitData(4) + SizeOfUninitData(4)
+            # + AddressOfEntryPoint(4) + BaseOfCode(4)
+            # + ImageBase(8) + SectionAlignment(4) + FileAlignment(4)
+            # + Win32VersionValue(8) + SizeOfImage(4) + SizeOfHeaders(4)
+            # + CheckSum(4) + Subsystem(2) + DllCharacteristics(2) + ...
+            # Data directories start at: OptionalHeader + 2(magic) + 108
+            dd_offset = coff + 20 + 110  # 2 + 108
         else:
             return None
 
@@ -70,7 +80,7 @@ def extract_exe_icon(exe_path, size=64):
 
         # Parse sections for RVA -> file offset
         sections = []
-        sec_offset = coff + 20 + 2 + opt_hdr_size
+        sec_offset = coff + 20 + opt_hdr_size
         for i in range(num_sections):
             base = sec_offset + i * 40
             vaddr = struct.unpack_from('<I', data, base + 12)[0]
@@ -645,10 +655,26 @@ def upload_software():
     if original_name.lower().endswith(('.exe', '.dll', '.msi')):
         icon_data = extract_exe_icon(str(file_path), size=64)
 
-    # Save icon to software_icons/<sw_id>.png
+    # Save icon: auto-extracted or manually uploaded
+    icon_path = ICON_DIR / f"{sw_id}.png"
     if icon_data:
-        icon_path = ICON_DIR / f"{sw_id}.png"
         icon_path.write_bytes(icon_data)
+    else:
+        # Try manual icon upload
+        icon_file = request.files.get('icon')
+        if icon_file and icon_file.filename:
+            from PIL import Image as PILImage
+            tmp = io.BytesIO(icon_file.read())
+            try:
+                img = PILImage.open(tmp)
+                if img.mode == 'RGBA':
+                    img = img.convert('RGBA')
+                img = img.resize((64, 64), PILImage.Resampling.LANCZOS if hasattr(PILImage, 'Resampling') else PILImage.LANCZOS)
+                buf = io.BytesIO()
+                img.save(buf, format='PNG')
+                icon_path.write_bytes(buf.getvalue())
+            except:
+                pass
 
     # Save version
     ver_id = uuid.uuid4().hex
