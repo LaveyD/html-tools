@@ -32,47 +32,76 @@ ICON_DIR.mkdir(exist_ok=True)
 
 # ─── Icon Extraction ───────────────────────────────────────
 def extract_exe_icon(exe_path, size=64):
-    """Extract icon from .exe/.dll using pefile + Pillow."""
+    """Extract icon from .exe/.dll — pure struct parse, find PNG/BMP in .rsrc section."""
     if not HAS_ICON_EXTRACT:
         return None
     try:
-        import pefile
-        pe = pefile.PE(str(exe_path))
+        with open(exe_path, 'rb') as f:
+            data = f.read(1048576)  # read first 1MB — enough for PE header + .rsrc
 
-        # Look for RT_ICON (3) or RT_GROUP_ICON (14)
-        icon_data_list = []
-        for resource in pe.DIRECTORY_ENTRY_RESOURCE.entries:
-            rtype = resource.id
-            if rtype not in (pefile.RESOURCE_TYPE['RT_ICON'],
-                             pefile.RESOURCE_TYPE['RT_GROUP_ICON']):
-                continue
-            # Walk to data entry
-            for sub in resource.directory.entries:
-                if hasattr(sub, 'directory'):
-                    for sub2 in sub.directory.entries:
-                        if hasattr(sub2, 'data'):
-                            icon_data_list.append(sub2.data)
-                elif hasattr(sub, 'data'):
-                    icon_data_list.append(sub.data)
+        if len(data) < 64 or data[:2] != b'MZ':
+            return None
 
-        # Try to decode as image with Pillow
-        for entry in icon_data_list:
-            try:
-                rva = entry.struct.OffsetToData
-                sz = entry.struct.Size
-                if sz <= 0 or sz > 20000000:
-                    continue
-                raw = pe.get_memory_mapped_image()[rva:rva + sz]
-                img = Image.open(io.BytesIO(raw))
-                if img.mode != 'RGBA':
-                    img = img.convert('RGBA')
-                img = img.resize((size, size), Image.Resampling.LANCZOS if hasattr(Image, 'Resampling') else Image.Resampling.LANCZOS)
-                buf = io.BytesIO()
-                img.save(buf, format='PNG')
-                pe.close()
-                return buf.getvalue()
-            except Exception:
-                continue
+        # PE header
+        pe_offset = struct.unpack_from('<I', data, 60)[0]
+        if data[pe_offset:pe_offset+4] != b'PE\x00\x00':
+            return None
+        coff = pe_offset + 4
+        num_sections = struct.unpack_from('<H', data, coff + 2)[0]
+        opt_hdr_size = struct.unpack_from('<H', data, coff + 16)[0]
+
+        # Find .rsrc section by name
+        sec_offset = coff + 20 + opt_hdr_size
+        rsrc_ro = rsrc_rs = None
+        for i in range(num_sections):
+            base = sec_offset + i * 40
+            name = data[base:base+8].rstrip(b'\x00').decode('ascii', errors='replace')
+            if 'rsrc' in name:
+                rsrc_rs = struct.unpack_from('<I', data, base + 16)[0]
+                rsrc_ro = struct.unpack_from('<I', data, base + 20)[0]
+                break
+
+        if rsrc_ro is None or rsrc_rs == 0:
+            return None
+
+        # Search for PNG (89504E47) or BMP (424D) in .rsrc section
+        rsrc_end = rsrc_ro + rsrc_rs
+        search_data = data[rsrc_ro:rsrc_end]
+        search_len = len(search_data)
+
+        # PNG scan
+        for i in range(search_len - 8):
+            if search_data[i] == 0x89 and search_data[i+1] == 0x50 and search_data[i+2] == 0x4E and search_data[i+3] == 0x47:
+                # Walk PNG chunks to find IEND
+                p = i + 8
+                while p + 8 <= search_len:
+                    cl = struct.unpack_from('>I', search_data, p)[0]
+                    if cl > 10000000:
+                        break
+                    p += 12 + cl
+                    if search_data[p-8:p-4] == b'IEND':
+                        png_data = search_data[i:p]
+                        img = Image.open(io.BytesIO(png_data))
+                        if img.mode != 'RGBA':
+                            img = img.convert('RGBA')
+                        img = img.resize((size, size), Image.Resampling.LANCZOS if hasattr(Image, 'Resampling') else Image.Resampling.LANCZOS)
+                        buf = io.BytesIO()
+                        img.save(buf, format='PNG')
+                        return buf.getvalue()
+
+        # BMP scan
+        for i in range(search_len - 6):
+            if search_data[i] == 0x42 and search_data[i+1] == 0x4D:
+                bmp_sz = struct.unpack_from('<I', search_data, i + 2)[0]
+                if 54 < bmp_sz < 10000000 and i + bmp_sz <= search_len:
+                    bmp_data = search_data[i:i+bmp_sz]
+                    img = Image.open(io.BytesIO(bmp_data))
+                    if img.mode != 'RGBA':
+                        img = img.convert('RGBA')
+                    img = img.resize((size, size), Image.Resampling.LANCZOS if hasattr(Image, 'Resampling') else Image.Resampling.LANCZOS)
+                    buf = io.BytesIO()
+                    img.save(buf, format='PNG')
+                    return buf.getvalue()
 
         return None
     except Exception as e:
