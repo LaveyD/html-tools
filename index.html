@@ -735,6 +735,13 @@
     </footer>
 
     <script>
+        // ── HTML Escape (XSS protection) ──
+        function htmlEscape(str) {
+            if (str === null || str === undefined) return '';
+            return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+        }
+
+
         // ── Theme ──────────────────────────────────────────
         function initTheme() {
             const saved = localStorage.getItem('theme') || 'light';
@@ -951,7 +958,7 @@
                 const latestVer = sw.latest_version;
                 const latestSize = sw.latest_size;
                 const iconHtml = sw.icon_url
-                    ? `<img src="${sw.icon_url}" alt="${sw.name}" onerror="this.parentElement.innerHTML='${cat.icon}';this.parentElement.style.background='#3b82f620';this.parentElement.style.color='#3b82f6';">`
+                    ? `<img src="${sw.icon_url}" alt="${htmlEscape(sw.name)}" onerror="this.parentElement.innerHTML='${cat.icon}';this.parentElement.style.background='#3b82f620';this.parentElement.style.color='#3b82f6';">`
                     : cat.icon;
                 const iconClass = sw.icon_url
                     ? 'tool-icon tool-icon-img'
@@ -966,17 +973,17 @@
                             ${iconHtml}
                         </div>
                         <div class="tool-info">
-                            <div class="tool-title">${sw.name}</div>
+                            <div class="tool-title">${htmlEscape(sw.name)}</div>
                             <div class="tool-category">${cat.icon} ${cat.name}</div>
                             ${latestVer ? `<div class="tool-version">v${latestVer} · ${sw.version_count || 1} 个版本</div>` : ''}
                             ${latestSize ? `<div class="tool-size">${latestSize}</div>` : ''}
                         </div>
                     </div>
-                    ${sw.description ? `<div class="tool-description" title="${sw.description}">${sw.description}</div>` : ''}
+                    ${sw.description ? `<div class="tool-description" title="${htmlEscape(sw.description)}">${htmlEscape(sw.description)}</div>` : ''}
                     ${(sw.tags || []).length ? `<div class="tool-tags">${(sw.tags || []).slice(0, 4).map(tag => `<span class="tool-tag">${tag}</span>`).join('')}</div>` : ''}
                     <div class="tool-footer">
                         <span class="tool-meta-item"><i class="fas fa-download"></i> ${sw.total_downloads || 0} 次下载</span>
-                        <a href="/api/software/${sw.slug}/download" class="download-btn" onclick="event.stopPropagation()">
+                        <a href="/api/software/${htmlEscape(sw.slug)}/download" class="download-btn" onclick="event.stopPropagation()">
                             <i class="fas fa-download"></i> 下载
                         </a>
                     </div>

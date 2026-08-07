@@ -714,6 +714,13 @@
     <div class="toast" id="toast"></div>
 
     <script>
+        // ── HTML Escape (XSS protection) ──
+        function htmlEscape(str) {
+            if (str === null || str === undefined) return '';
+            return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+        }
+
+
         const TOKEN = localStorage.getItem('admin_token');
 
         // Auth check
@@ -1035,20 +1042,20 @@
                 const cat = categories[sw.category] || sw.category;
                 const latestVer = sw.latest_version ? sw.latest_version.version : '-';
                 return `<tr>
-                    <td><a class="link" href="/software/detail.html#${sw.slug}" target="_blank">${sw.name}</a>
-                        <br><small style="color:var(--text-muted)">${sw.slug}</small></td>
+                    <td><a class="link" href="/software/detail.html#${sw.slug}" target="_blank">${htmlEscape(sw.name)}</a>
+                        <br><small style="color:var(--text-muted)">${htmlEscape(sw.slug)}</small></td>
                     <td>${cat}</td>
                     <td>${latestVer}</td>
-                    <td><a class="link" onclick="showVersions('${sw.slug}')">${sw.version_count}</a></td>
+                    <td><a class="link" onclick="showVersions('${htmlEscape(sw.slug)}')">${sw.version_count}</a></td>
                     <td>${sw.total_downloads || 0}</td>
                     <td><span class="status-badge ${sw.status}">${sw.status==='active'?'活跃':'已归档'}</span></td>
                     <td>${formatDate(sw.created_at)}</td>
                     <td><div class="actions-group">
-                        <button class="action-btn" onclick="openEditModal('${sw.slug}')" title="编辑"><i class="fas fa-edit"></i></button>
+                        <button class="action-btn" onclick="openEditModal('${htmlEscape(sw.slug)}')" title="编辑"><i class="fas fa-edit"></i></button>
                         ${sw.status==='active'
-                            ? `<button class="action-btn" onclick="updateSoftware('${sw.slug}','archive')" title="归档"><i class="fas fa-archive"></i></button>`
-                            : `<button class="action-btn success" onclick="updateSoftware('${sw.slug}','activate')" title="恢复"><i class="fas fa-undo"></i></button>`}
-                        <button class="action-btn danger" onclick="updateSoftware('${sw.slug}','delete')" title="删除"><i class="fas fa-trash"></i></button>
+                            ? `<button class="action-btn" onclick="updateSoftware('${htmlEscape(sw.slug)}','archive')" title="归档"><i class="fas fa-archive"></i></button>`
+                            : `<button class="action-btn success" onclick="updateSoftware('${htmlEscape(sw.slug)}','activate')" title="恢复"><i class="fas fa-undo"></i></button>`}
+                        <button class="action-btn danger" onclick="updateSoftware('${htmlEscape(sw.slug)}','delete')" title="删除"><i class="fas fa-trash"></i></button>
                     </div></td>
                 </tr>`;
             }).join('');
@@ -1210,8 +1217,8 @@
             document.getElementById('version-list').innerHTML = data.data.map(v => `
                 <li class="version-item-modal">
                     <div class="version-info-modal">
-                        <strong>v${v.version}</strong> <span class="status-badge ${v.status}">${v.status==='active'?'活跃':'已归档'}</span>
-                        <small>${v.original_name} · ${v.file_size_text} · 下载 ${v.download_count||0} · ${v.uploader||'-'} · ${formatDate(v.created_at)}</small>
+                        <strong>v${htmlEscape(v.version)}</strong> <span class="status-badge ${v.status}">${v.status==='active'?'活跃':'已归档'}</span>
+                        <small>${htmlEscape(v.original_name)} · ${v.file_size_text} · 下载 ${v.download_count||0} · ${v.uploader||'-'} · ${formatDate(v.created_at)}</small>
                     </div>
                     <div class="actions-group">
                         ${v.status==='active'
@@ -1248,7 +1255,7 @@
             }
             body.innerHTML = data.data.map(r => `<tr>
                 <td>${typeLabels[r.type]||r.type}</td>
-                <td><strong>${r.title}</strong></td>
+                <td><strong>${htmlEscape(r.title)}</strong></td>
                 <td class="desc-cell" title="${(r.description||'').replace(/"/g,'&quot;')}">${r.description||'-'}</td>
                 <td>${r.submitter||'-'}</td>
                 <td><span class="status-badge ${r.status}">${{pending:'待处理',processing:'处理中',done:'已完成',rejected:'已拒绝'}[r.status]||r.status}</span></td>
@@ -1281,7 +1288,7 @@
             if (!r) { document.getElementById('request-detail').innerHTML = '<p style="color:var(--text-muted)">未找到</p>'; return; }
             document.getElementById('request-detail').innerHTML = `
                 <p><strong>类型：</strong>${typeLabels[r.type]||r.type}</p>
-                <p><strong>标题：</strong>${r.title}</p>
+                <p><strong>标题：</strong>${htmlEscape(r.title)}</p>
                 <p><strong>描述：</strong>${r.description||'-'}</p>
                 <p><strong>提交人：</strong>${r.submitter||'-'}</p>
                 <p><strong>状态：</strong>${r.status}</p>
@@ -1352,7 +1359,7 @@
             } else {
                 body.innerHTML = pageItems.map(t => `<tr>
                     <td style="font-size:20px">${t.icon || '🔧'}</td>
-                    <td><strong>${t.name}</strong></td>
+                    <td><strong>${htmlEscape(t.name)}</strong></td>
                     <td style="font-size:12px;color:var(--text-muted)">${t.id}</td>
                     <td>${t.category || '-'}</td>
                     <td class="desc-cell" title="${(t.description||'').replace(/"/g,'&quot;')}">${t.description || '-'}</td>

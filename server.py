@@ -4,7 +4,6 @@ Flask + SQLite: 软件上传/下载（多版本）、需求收集、版本管理
 """
 import json
 import uuid
-import hashlib
 import sqlite3
 import struct
 import io
@@ -13,8 +12,9 @@ from pathlib import Path
 from functools import wraps
 import re
 import os
-from flask import Flask, request, jsonify, send_from_directory, send_file, redirect
+from flask import Flask, request, jsonify, send_from_directory, send_file, redirect, make_response
 from werkzeug.utils import secure_filename
+from werkzeug.security import generate_password_hash, check_password_hash
 
 try:
     from PIL import Image
@@ -24,12 +24,31 @@ except ImportError:
 
 app = Flask(__name__)
 
+@app.after_request
+def set_security_headers(response):
+    response.headers['X-Content-Type-Options'] = 'nosniff'
+    response.headers['X-Frame-Options'] = 'DENY'
+    response.headers['X-XSS-Protection'] = '1; mode=block'
+    response.headers['Referrer-Policy'] = 'no-referrer'
+    response.headers['Content-Security-Policy'] = (
+        "default-src 'self'; "
+        "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
+        "img-src 'self' data: blob:; "
+        "style-src 'self' 'unsafe-inline';"
+    )
+    return response
+
 BASE_DIR = Path(__file__).parent.resolve()
 DB_PATH = BASE_DIR / 'software.db'
 UPLOAD_DIR = BASE_DIR / 'software_files'
 UPLOAD_DIR.mkdir(exist_ok=True)
 ICON_DIR = BASE_DIR / 'software_icons'
 ICON_DIR.mkdir(exist_ok=True)
+# ── Security config (env vars or defaults) ─────────────────
+UPLOAD_MAX_SIZE = int(os.environ.get('UPLOAD_MAX_SIZE', 1024 * 1024 * 1024))  # 1GB default
+ALLOWED_EXTENSIONS = set(os.environ.get('ALLOWED_EXTENSIONS',
+    'exe,msi,zip,rar,7z,tar,gz,bz2,xz,dmg,pkg,deb,rpm,apk,appx').split(','))
+
 
 # ─── Icon Extraction ───────────────────────────────────────
 def extract_exe_icon(exe_path, size=64):
@@ -305,14 +324,16 @@ def init_admin():
         # Create default: password = admin123
         pw = 'admin123'
         config_path.write_text(json.dumps({
-            'password_hash': hashlib.sha256(pw.encode()).hexdigest()
+            'password_hash': generate_password_hash(pw),
+            'force_change': True,
         }, indent=2))
     with open(config_path) as f:
         cfg = json.load(f)
-    return cfg.get('password_hash', '')
+    return cfg
 
 
-ADMIN_PASSWORD_HASH = init_admin()
+ADMIN_CONFIG = init_admin()
+ADMIN_PASSWORD_HASH = ADMIN_CONFIG['password_hash']
 
 
 def require_admin(f):
@@ -320,7 +341,6 @@ def require_admin(f):
     def decorated(*args, **kwargs):
         token = (
             request.headers.get('X-Admin-Token')
-            or request.args.get('token')
             or request.cookies.get('admin_token')
         )
         if not token or token not in ADMIN_TOKENS:
@@ -365,8 +385,7 @@ def admin_login():
         return jsonify({'code': 400, 'message': err}), 400
 
     # Verify password
-    pw_hash = hashlib.sha256(password.encode()).hexdigest()
-    if pw_hash != ADMIN_PASSWORD_HASH:
+    if not check_password_hash(ADMIN_PASSWORD_HASH, password):
         _record_login_failure(ip)
         return jsonify({'code': 403, 'message': '密码错误'}), 403
 
@@ -374,7 +393,16 @@ def admin_login():
     _clear_login_failures(ip)
     token = uuid.uuid4().hex
     ADMIN_TOKENS[token] = datetime.now() + timedelta(hours=24)
-    return jsonify({'code': 0, 'data': {'token': token}})
+
+    force_change = ADMIN_CONFIG.get('force_change', False)
+    resp = make_response(jsonify({'code': 0, 'data': {'token': token, 'force_change': force_change}}))
+    resp.set_cookie(
+        'admin_token', token,
+        httponly=True,
+        samesite='Strict',
+        max_age=86400
+    )
+    return resp
 
 
 @app.route('/api/password-public-key', methods=['GET'])
@@ -405,7 +433,6 @@ def get_captcha():
 def admin_logout():
     token = (
         request.headers.get('X-Admin-Token')
-        or request.args.get('token')
         or request.cookies.get('admin_token')
     )
     if token:
@@ -823,6 +850,19 @@ def upload_software():
     file = request.files.get('file')
     if not file or not file.filename:
         return jsonify({'code': 400, 'message': '请上传文件'}), 400
+
+    # Extension whitelist
+    ext = file.filename.rsplit('.', 1)[-1].lower() if '.' in file.filename else ''
+    if ext not in ALLOWED_EXTENSIONS:
+        return jsonify({'code': 400, 'message': f'不支持的文件类型: .{ext}'}), 400
+
+    # File size limit (configurable via UPLOAD_MAX_SIZE env var, default 1GB)
+    file.seek(0, 2)
+    fsize = file.tell()
+    file.seek(0)
+    if fsize > UPLOAD_MAX_SIZE:
+        max_mb = UPLOAD_MAX_SIZE // (1024 * 1024)
+        return jsonify({'code': 400, 'message': f'文件过大，最大支持 {max_mb}MB'}), 400
 
     try:
         tags = json.loads(tags_str)
