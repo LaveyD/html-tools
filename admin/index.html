@@ -647,6 +647,60 @@
         </div>
     </div>
 
+    <!-- Edit Software Modal -->
+    <div class="modal-overlay" id="edit-modal">
+        <div class="modal" style="max-width:560px">
+            <button class="modal-close" onclick="closeEditModal()">&times;</button>
+            <div class="modal-title">编辑软件信息</div>
+            <form id="edit-form" onsubmit="submitEdit(event)">
+                <input type="hidden" id="edit-slug">
+                <div style="display:flex;gap:12px;margin-bottom:16px">
+                    <div style="flex:1">
+                        <label class="upload-form-label">软件名称 <span style="color:#e53e3e">*</span></label>
+                        <input type="text" class="upload-form-input" id="edit-name" required>
+                    </div>
+                    <div style="flex:1">
+                        <label class="upload-form-label">分类 <span style="color:#e53e3e">*</span></label>
+                        <select class="upload-form-input" id="edit-category" required>
+                            <option value="">请选择</option>
+                            <option value="dev">开发工具</option>
+                            <option value="design">设计工具</option>
+                            <option value="office">办公软件</option>
+                            <option value="security">安全工具</option>
+                            <option value="system">系统工具</option>
+                            <option value="network">网络工具</option>
+                            <option value="database">数据库</option>
+                            <option value="other">其他</option>
+                        </select>
+                    </div>
+                </div>
+                <div style="margin-bottom:16px">
+                    <label class="upload-form-label">描述</label>
+                    <textarea class="upload-form-textarea" id="edit-desc" rows="3" placeholder="简要描述..."></textarea>
+                </div>
+                <div style="margin-bottom:16px">
+                    <label class="upload-form-label">标签（回车添加）</label>
+                    <div class="upload-tags-wrapper" id="edit-tags-wrapper">
+                        <input type="text" class="tag-input" id="edit-tags-input" placeholder="输入后回车...">
+                    </div>
+                    <input type="hidden" id="edit-tags" value="[]">
+                </div>
+                <div style="margin-bottom:16px">
+                    <label class="upload-form-label">图标</label>
+                    <div style="display:flex;align-items:center;gap:12px">
+                        <label style="width:64px;height:64px;border:2px dashed var(--border);border-radius:8px;display:flex;align-items:center;justify-content:center;cursor:pointer;overflow:hidden;flex-shrink:0;background:#fff" id="edit-icon-display">
+                            <input type="file" id="edit-icon-file" accept="image/*" style="display:none" onchange="editIconUpload(this)">
+                            <span style="font-size:20px;color:var(--text-muted)">+</span>
+                        </label>
+                        <input type="hidden" id="edit-icon-data">
+                        <small style="color:var(--text-muted)">点击更换图标</small>
+                    </div>
+                </div>
+                <button type="submit" class="btn-upload" id="edit-submit-btn">保存修改</button>
+            </form>
+        </div>
+    </div>
+
     <!-- Request Detail Modal -->
     <div class="modal-overlay" id="request-modal">
         <div class="modal">
@@ -990,6 +1044,7 @@
                     <td><span class="status-badge ${sw.status}">${sw.status==='active'?'活跃':'已归档'}</span></td>
                     <td>${formatDate(sw.created_at)}</td>
                     <td><div class="actions-group">
+                        <button class="action-btn" onclick="openEditModal('${sw.slug}')" title="编辑"><i class="fas fa-edit"></i></button>
                         ${sw.status==='active'
                             ? `<button class="action-btn" onclick="updateSoftware('${sw.slug}','archive')" title="归档"><i class="fas fa-archive"></i></button>`
                             : `<button class="action-btn success" onclick="updateSoftware('${sw.slug}','activate')" title="恢复"><i class="fas fa-undo"></i></button>`}
@@ -1028,6 +1083,119 @@
             });
             if (data.code === 0) { showToast(`${labels[action]}成功`); loadSoftwareList(); loadStats(); }
             else showToast(data.message, 'error');
+        }
+
+        // ── Edit Software ─────────────────────────────────
+        let editTags = [];
+
+        function closeEditModal() {
+            document.getElementById('edit-modal').classList.remove('show');
+            editTags = [];
+        }
+
+        async function openEditModal(slug) {
+            const data = await apiJson(`/api/admin/software/${slug}`);
+            if (data.code !== 0) return;
+            const sw = data.data;
+
+            document.getElementById('edit-slug').value = sw.slug;
+            document.getElementById('edit-name').value = sw.name;
+            document.getElementById('edit-category').value = sw.category;
+            document.getElementById('edit-desc').value = sw.description || '';
+
+            // Tags
+            editTags = sw.tags || [];
+            renderEditTags();
+            document.getElementById('edit-icon-data').value = '';
+
+            // Icon display
+            const display = document.getElementById('edit-icon-display');
+            if (sw.icon_url) {
+                display.innerHTML = `<img src="${sw.icon_url}" style="width:100%;height:100%;object-fit:contain"><input type="file" id="edit-icon-file" accept="image/*" style="display:none" onchange="editIconUpload(this)">`;
+            } else {
+                display.innerHTML = `<span style="font-size:20px;color:var(--text-muted)">+</span><input type="file" id="edit-icon-file" accept="image/*" style="display:none" onchange="editIconUpload(this)">`;
+            }
+
+            document.getElementById('edit-modal').classList.add('show');
+        }
+
+        function editIconUpload(input) {
+            const file = input.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const b64 = e.target.result;
+                const display = document.getElementById('edit-icon-display');
+                display.innerHTML = `<img src="${b64}" style="width:100%;height:100%;object-fit:contain"><input type="file" id="edit-icon-file" accept="image/*" style="display:none" onchange="editIconUpload(this)">`;
+                document.getElementById('edit-icon-data').value = b64;
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function renderEditTags() {
+            const wrapper = document.getElementById('edit-tags-wrapper');
+            const input = document.getElementById('edit-tags-input');
+            wrapper.innerHTML = '';
+            editTags.forEach((t, i) => {
+                const chip = document.createElement('span');
+                chip.className = 'upload-tag';
+                chip.textContent = t;
+                chip.onclick = () => { editTags.splice(i, 1); renderEditTags(); };
+                wrapper.appendChild(chip);
+            });
+            wrapper.appendChild(input);
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const editInput = document.getElementById('edit-tags-input');
+            if (editInput) {
+                editInput.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter') {
+                        e.preventDefault();
+                        const v = e.target.value.trim();
+                        if (v && !editTags.includes(v)) {
+                            editTags.push(v);
+                            renderEditTags();
+                            document.getElementById('edit-tags').value = JSON.stringify(editTags);
+                        }
+                        e.target.value = '';
+                    }
+                });
+            }
+        });
+
+        async function submitEdit(e) {
+            e.preventDefault();
+            document.getElementById('edit-tags').value = JSON.stringify(editTags);
+            const slug = document.getElementById('edit-slug').value;
+            const btn = document.getElementById('edit-submit-btn');
+            btn.disabled = true;
+            btn.textContent = '保存中...';
+            try {
+                const data = await apiJson(`/api/software/${slug}`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        name: document.getElementById('edit-name').value,
+                        category: document.getElementById('edit-category').value,
+                        description: document.getElementById('edit-desc').value,
+                        tags: editTags,
+                        icon_data: document.getElementById('edit-icon-data').value
+                    })
+                });
+                if (data.code === 0) {
+                    showToast('保存成功');
+                    closeEditModal();
+                    loadSoftwareList();
+                } else {
+                    showToast(data.message, 'error');
+                }
+            } catch(err) {
+                showToast('保存失败', 'error');
+            } finally {
+                btn.disabled = false;
+                btn.textContent = '保存修改';
+            }
         }
 
         // ── Versions ────────────────────────────────────

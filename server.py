@@ -834,16 +834,57 @@ def update_software(slug):
 
     # Update fields
     if 'name' in data:
-        conn.execute("UPDATE software SET name=? WHERE id=?", (data['name'], sw['id']))
+        new_slug = make_slug(data['name'])
+        conn.execute("UPDATE software SET name=?, slug=? WHERE id=?", (data['name'], new_slug, sw['id']))
     if 'category' in data:
         conn.execute("UPDATE software SET category=? WHERE id=?", (data['category'], sw['id']))
     if 'description' in data:
         conn.execute("UPDATE software SET description=? WHERE id=?", (data['description'], sw['id']))
+    if 'tags' in data:
+        conn.execute("UPDATE software SET tags=? WHERE id=?", (json.dumps(data['tags'], ensure_ascii=False), sw['id']))
+    if 'icon_data' in data:
+        # Update icon
+        icon_b64 = data['icon_data']
+        if icon_b64:
+            try:
+                if ',' in icon_b64:
+                    icon_b64 = icon_b64.split(',', 1)[1]
+                import base64
+                from PIL import Image as PILImage
+                raw = base64.b64decode(icon_b64)
+                img = PILImage.open(io.BytesIO(raw))
+                if img.mode != 'RGBA':
+                    img = img.convert('RGBA')
+                img = img.resize((64, 64), PILImage.Resampling.LANCZOS if hasattr(PILImage, 'Resampling') else PILImage.LANCZOS)
+                buf = io.BytesIO()
+                img.save(buf, format='PNG')
+                icon_path = ICON_DIR / f"{sw['id']}.png"
+                icon_path.write_bytes(buf.getvalue())
+            except Exception as e:
+                print(f"Icon update error: {e}")
 
     conn.execute("UPDATE software SET updated_at=? WHERE id=?", (datetime.now().isoformat(), sw['id']))
     conn.commit()
     conn.close()
     return jsonify({'code': 0, 'message': '操作成功'})
+
+
+@app.route('/api/admin/software/<slug>', methods=['GET'])
+@require_admin
+def get_software_detail(slug):
+    """Get software detail for editing."""
+    conn = get_db()
+    sw = conn.execute("SELECT * FROM software WHERE slug=?", (slug,)).fetchone()
+    if not sw:
+        conn.close()
+        return jsonify({'code': 404, 'message': '软件不存在'}), 404
+    conn.close()
+    sw_dict = software_to_dict(sw)
+    sw_dict['tags'] = json.loads(sw['tags']) if sw['tags'] else []
+    # Check if icon exists
+    icon_path = ICON_DIR / f"{sw['id']}.png"
+    sw_dict['icon_url'] = f"/software_icons/{sw['id']}.png" if icon_path.exists() else None
+    return jsonify({'code': 0, 'data': sw_dict})
 
 
 # ─── Search ────────────────────────────────────────────────
