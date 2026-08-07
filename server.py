@@ -12,6 +12,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from functools import wraps
 import re
+import os
 from flask import Flask, request, jsonify, send_from_directory, send_file, redirect
 from werkzeug.utils import secure_filename
 
@@ -113,6 +114,189 @@ def extract_exe_icon(exe_path, size=64):
 # Default password: admin123 — change this!
 ADMIN_TOKENS = {}  # token -> expiry
 
+# ── RSA key pair for password encryption ──────────────────
+from cryptography.hazmat.primitives.asymmetric import rsa, padding
+from cryptography.hazmat.primitives import serialization, hashes
+
+RSA_PRIVATE_KEY = rsa.generate_private_key(
+    public_exponent=65537,
+    key_size=2048,
+)
+RSA_PUBLIC_KEY_PEM = RSA_PRIVATE_KEY.public_key().public_bytes(
+    encoding=serialization.Encoding.PEM,
+    format=serialization.PublicFormat.SubjectPublicKeyInfo,
+).decode('ascii')
+
+# ── Captcha (in-memory, no Redis needed) ──────────────────
+import random
+import string
+import io
+from datetime import datetime, timedelta
+
+CAPTCHA_STORE = {}  # token -> {answer, expires_at}
+CAPTCHA_LENGTH = 5
+CAPTCHA_EXPIRY = timedelta(minutes=5)
+
+# ── Rate limiter (in-memory sliding window) ────────────────
+LOGIN_FAIL_COUNTS = {}    # ip -> [(timestamp, count)]
+ACCOUNT_LOCKOUTS = {}     # ip -> unlock_time
+
+RATE_LIMIT_IP_WINDOW = 60        # seconds
+RATE_LIMIT_IP_MAX = 15           # max requests per window per IP
+LOGIN_FAIL_WINDOW = 300          # 5 minutes
+LOGIN_FAIL_MAX = 5               # max failures before lockout
+ACCOUNT_LOCKOUT_DURATION = 300   # 5 minutes lockout
+
+
+def _cleanup_expired_stores():
+    """Clean up expired captcha and rate limit entries."""
+    now = datetime.now()
+    # Clean captcha
+    expired = [k for k, v in CAPTCHA_STORE.items() if now > v['expires_at']]
+    for k in expired:
+        del CAPTCHA_STORE[k]
+    # Clean rate limits (older than 2 windows)
+    cutoff = now - timedelta(seconds=RATE_LIMIT_IP_WINDOW * 2)
+    for ip in list(LOGIN_FAIL_COUNTS.keys()):
+        LOGIN_FAIL_COUNTS[ip] = [t for t in LOGIN_FAIL_COUNTS[ip] if t > cutoff]
+        if not LOGIN_FAIL_COUNTS[ip]:
+            del LOGIN_FAIL_COUNTS[ip]
+    for ip in list(ACCOUNT_LOCKOUTS.keys()):
+        if now > ACCOUNT_LOCKOUTS[ip]:
+            del ACCOUNT_LOCKOUTS[ip]
+
+
+def _check_ip_rate_limit(ip):
+    """Check if IP has exceeded login rate limit. Returns (allowed, remaining, message|None)."""
+    now = datetime.now()
+    # Check lockout first
+    if ip in ACCOUNT_LOCKOUTS:
+        if now > ACCOUNT_LOCKOUTS[ip]:
+            del ACCOUNT_LOCKOUTS[ip]
+            LOGIN_FAIL_COUNTS.pop(ip, None)
+        else:
+            unlock_in = int((ACCOUNT_LOCKOUTS[ip] - now).total_seconds())
+            return False, 0, f'账户已锁定，{unlock_in}秒后重试'
+    # Sliding window check
+    if ip not in LOGIN_FAIL_COUNTS:
+        return True, RATE_LIMIT_IP_MAX, None
+    window_start = now - timedelta(seconds=RATE_LIMIT_IP_WINDOW)
+    recent = [t for t in LOGIN_FAIL_COUNTS[ip] if t > window_start]
+    LOGIN_FAIL_COUNTS[ip] = recent
+    remaining = max(0, RATE_LIMIT_IP_MAX - len(recent))
+    if remaining == 0:
+        return False, 0, '请求过于频繁，请稍后再试'
+    return True, remaining, None
+
+
+def _record_login_failure(ip):
+    """Record a login failure and check if account should be locked."""
+    now = datetime.now()
+    if ip not in LOGIN_FAIL_COUNTS:
+        LOGIN_FAIL_COUNTS[ip] = []
+    LOGIN_FAIL_COUNTS[ip].append(now)
+    # Check if locked
+    window_start = now - timedelta(seconds=LOGIN_FAIL_WINDOW)
+    recent = [t for t in LOGIN_FAIL_COUNTS[ip] if t > window_start]
+    if len(recent) >= LOGIN_FAIL_MAX:
+        ACCOUNT_LOCKOUTS[ip] = now + timedelta(seconds=ACCOUNT_LOCKOUT_DURATION)
+
+
+def _clear_login_failures(ip):
+    """Clear login failure count on successful login."""
+    LOGIN_FAIL_COUNTS.pop(ip, None)
+    ACCOUNT_LOCKOUTS.pop(ip, None)
+
+
+def _rsa_decrypt_password(encrypted_b64, nonce):
+    """Decrypt RSA-OAEP-256 encrypted password. Returns (password, error_msg)."""
+    import base64
+    try:
+        raw = base64.b64decode(encrypted_b64)
+        decrypted = RSA_PRIVATE_KEY.decrypt(
+            raw,
+            padding.OAEP(
+                mgf=padding.MGF1(algorithm=hashes.SHA256()),
+                algorithm=hashes.SHA256(),
+                label=None,
+            )
+        )
+        # Decrypt and validate nonce
+        plaintext = decrypted.decode('utf-8')
+        parts = plaintext.split('|', 1)
+        if len(parts) != 2 or parts[0] != nonce:
+            return None, 'Nonce 验证失败'
+        return parts[1], None
+    except Exception:
+        return None, '密码解密失败'
+
+
+def _generate_captcha():
+    """Generate captcha. Returns (token, png_bytes)."""
+    # Generate answer
+    chars = string.ascii_letters + string.digits
+    answer = ''.join(random.choices(chars, k=CAPTCHA_LENGTH))
+    token = uuid.uuid4().hex
+    CAPTCHA_STORE[token] = {
+        'answer': answer,
+        'expires_at': datetime.now() + CAPTCHA_EXPIRY,
+    }
+    # Render as PNG using Pillow
+    try:
+        from PIL import Image, ImageDraw, ImageFont
+        img = Image.new('RGBA', (160, 60), (255, 255, 255, 255))
+        draw = ImageDraw.Draw(img)
+        # Try to use a font, fall back to default
+        font = None
+        for font_path in ['/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf',
+                          '/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf']:
+            if os.path.exists(font_path):
+                font = ImageFont.truetype(font_path, 32)
+                break
+        if not font:
+            font = ImageFont.load_default()
+        # Draw characters with random offsets
+        char_width = 160 // CAPTCHA_LENGTH
+        for i, ch in enumerate(answer):
+            ox = i * char_width + random.randint(2, 8)
+            oy = random.randint(5, 20)
+            color = tuple(random.randint(50, 120) for _ in range(3))
+            draw.text((ox, oy), ch, fill=color, font=font)
+        # Draw noise lines
+        for _ in range(5):
+            x1, y1 = random.randint(0, 160), random.randint(0, 60)
+            x2, y2 = random.randint(0, 160), random.randint(0, 60)
+            draw.line([(x1, y1), (x2, y2)], fill=(200, 200, 200), width=1)
+        # Draw noise dots
+        for _ in range(40):
+            x, y = random.randint(0, 160), random.randint(0, 60)
+            draw.point((x, y), fill=(200, 200, 200))
+        buf = io.BytesIO()
+        img.save(buf, format='PNG')
+        return token, buf.getvalue()
+    except Exception as e:
+        print(f"Captcha generation error: {e}")
+        # Fallback: return simple text
+        return token, b'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=='
+
+
+def _verify_captcha(token, user_answer):
+    """Verify captcha answer. Returns True/False."""
+    _cleanup_expired_stores()
+    now = datetime.now()
+    if token not in CAPTCHA_STORE:
+        return False
+    entry = CAPTCHA_STORE[token]
+    if now > entry['expires_at']:
+        del CAPTCHA_STORE[token]
+        return False
+    # Time-safe comparison
+    import secrets
+    valid = secrets.compare_digest(entry['answer'].upper(), user_answer.upper())
+    # One-time use: delete immediately
+    del CAPTCHA_STORE[token]
+    return valid
+
 
 def init_admin():
     """Load admin config from file"""
@@ -152,13 +336,69 @@ def require_admin(f):
 @app.route('/api/admin/login', methods=['POST'])
 def admin_login():
     data = request.get_json(force=True) if request.is_json else {}
-    password = data.get('password', '')
+    password_field = data.get('password', '')
+    captcha_token = data.get('captcha_token', '')
+    captcha_answer = data.get('captcha_answer', '')
+    nonce = data.get('nonce', '')
+    ip = request.remote_addr
+
+    # Rate limit check
+    _cleanup_expired_stores()
+    allowed, remaining, rate_msg = _check_ip_rate_limit(ip)
+    if not allowed:
+        return jsonify({'code': 429, 'message': rate_msg}), 429
+
+    # Verify captcha
+    if not _verify_captcha(captcha_token, captcha_answer):
+        _record_login_failure(ip)
+        return jsonify({'code': 400, 'message': '验证码错误'}), 400
+
+    # RSA encrypted password (required)
+    if not password_field.startswith('enc:'):
+        _record_login_failure(ip)
+        return jsonify({'code': 400, 'message': '密码格式错误'}), 400
+
+    encrypted_b64 = password_field[4:]  # strip 'enc:' prefix
+    password, err = _rsa_decrypt_password(encrypted_b64, nonce)
+    if err:
+        _record_login_failure(ip)
+        return jsonify({'code': 400, 'message': err}), 400
+
+    # Verify password
     pw_hash = hashlib.sha256(password.encode()).hexdigest()
     if pw_hash != ADMIN_PASSWORD_HASH:
+        _record_login_failure(ip)
         return jsonify({'code': 403, 'message': '密码错误'}), 403
+
+    # Success: clear failures, issue token
+    _clear_login_failures(ip)
     token = uuid.uuid4().hex
     ADMIN_TOKENS[token] = datetime.now() + timedelta(hours=24)
     return jsonify({'code': 0, 'data': {'token': token}})
+
+
+@app.route('/api/password-public-key', methods=['GET'])
+def get_public_key():
+    """Return RSA public key for client-side password encryption."""
+    return jsonify({'code': 0, 'data': {'public_key': RSA_PUBLIC_KEY_PEM}})
+
+
+@app.route('/api/captcha', methods=['GET'])
+def get_captcha():
+    """Generate and return captcha as PNG image."""
+    ip = request.remote_addr
+    _cleanup_expired_stores()
+    allowed, _, msg = _check_ip_rate_limit(ip)
+    if not allowed:
+        return jsonify({'code': 429, 'message': msg}), 429
+
+    token, png_bytes = _generate_captcha()
+    from flask import Response
+    resp = Response(png_bytes, status=200, mimetype='image/png')
+    resp.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate'
+    resp.headers['Pragma'] = 'no-cache'
+    resp.headers['X-Captcha-Token'] = token
+    return resp
 
 
 @app.route('/api/admin/logout', methods=['POST'])

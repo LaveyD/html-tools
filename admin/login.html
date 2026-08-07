@@ -6,6 +6,7 @@
     <title>管理登录 - 软件工具集</title>
     <link rel="icon" href="favicon.svg">
     <link rel="stylesheet" href="assets/vendor/fontawesome/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/jsencrypt@3.3.2/bin/jsencrypt.min.js"></script>
     <style>
         :root {
             --primary: #6366f1;
@@ -95,6 +96,45 @@
             box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
         }
 
+        .captcha-row {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .captcha-row .form-input {
+            flex: 1;
+        }
+
+        .captcha-img {
+            width: 120px;
+            height: 42px;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            cursor: pointer;
+            background: var(--bg);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            transition: opacity 0.2s;
+        }
+
+        .captcha-img:hover {
+            opacity: 0.85;
+        }
+
+        .captcha-img img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+
+        .captcha-img .placeholder {
+            font-size: 12px;
+            color: var(--text-muted);
+        }
+
         .btn-login {
             width: 100%;
             padding: 12px;
@@ -142,6 +182,12 @@
         }
 
         .back-link:hover { color: var(--primary); }
+
+        .init-hint {
+            font-size: 12px;
+            color: var(--text-muted);
+            margin-top: 4px;
+        }
     </style>
 </head>
 <body>
@@ -157,6 +203,15 @@
                 <label class="form-label">管理密码</label>
                 <input type="password" class="form-input" id="password" required placeholder="请输入管理密码" autocomplete="off">
             </div>
+            <div class="form-group">
+                <label class="form-label">验证码</label>
+                <div class="captcha-row">
+                    <input type="text" class="form-input" id="captcha-input" required placeholder="输入验证码" autocomplete="off" maxlength="6">
+                    <div class="captcha-img" id="captcha-container" title="点击刷新" onclick="loadCaptcha()">
+                        <span class="placeholder">加载中...</span>
+                    </div>
+                </div>
+            </div>
             <button type="submit" class="btn-login" id="login-btn">
                 <i class="fas fa-sign-in-alt"></i> 登录
             </button>
@@ -166,36 +221,131 @@
     </div>
 
     <script>
-        // Check if already logged in
-        const token = localStorage.getItem('admin_token');
-        if (token) {
-            // Verify token is still valid
-            fetch('/api/admin/stats', {
-                headers: { 'X-Admin-Token': token }
-            }).then(r => {
-                if (r.status === 200) {
-                    window.location.href = 'index.html';
-                } else {
-                    localStorage.removeItem('admin_token');
+        // ── RSA Encryption ──
+        let rsaPublicKey = null;
+        let nonceStore = {};
+        let currentCaptchaToken = '';
+        const encryptor = new JSEncrypt();
+
+        async function initSecurity() {
+            // Fetch RSA public key
+            try {
+                const res = await fetch('/api/password-public-key');
+                const data = await res.json();
+                if (data.code === 0) {
+                    rsaPublicKey = data.data.public_key;
+                    encryptor.setPublicKey(rsaPublicKey);
                 }
-            }).catch(() => {
-                localStorage.removeItem('admin_token');
+            } catch (err) {
+                showError('安全初始化失败，请刷新页面重试');
+            }
+            // Load captcha
+            loadCaptcha();
+        }
+
+        // ── Captcha ──
+        async function loadCaptcha() {
+            const container = document.getElementById('captcha-container');
+            container.innerHTML = '<span class="placeholder">加载中...</span>';
+            try {
+                const res = await fetch('/api/captcha?' + Date.now());
+                if (res.status === 429) {
+                    const data = await res.json();
+                    container.innerHTML = '<span class="placeholder" style="color:var(--red)">过于频繁</span>';
+                    return;
+                }
+                currentCaptchaToken = res.headers.get('X-Captcha-Token') || '';
+                const blob = await res.blob();
+                const url = URL.createObjectURL(blob);
+                container.innerHTML = `<img src="${url}" alt="验证码" onload="URL.revokeObjectURL(this.src)">`;
+            } catch (err) {
+                container.innerHTML = '<span class="placeholder" style="color:var(--red)">加载失败</span>';
+            }
+        }
+
+        // ── Generate nonce (UUID v4 in browser) ──
+        function generateNonce() {
+            return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+                const r = crypto.getRandomValues(new Uint8Array(1))[0] % 16;
+                return (c === 'x' ? r : (r & 0x3) | 0x8).toString(16);
             });
         }
 
+        // ── Encrypt password with RSA ──
+        function encryptPassword(password, nonce) {
+            const plaintext = nonce + '|' + password;
+            return encryptor.encrypt(plaintext);
+        }
+
+        // ── Error display ──
+        function showError(msg) {
+            const el = document.getElementById('error-msg');
+            el.textContent = msg;
+            el.classList.add('show');
+        }
+
+        function clearError() {
+            document.getElementById('error-msg').classList.remove('show');
+        }
+
+        // ── Check existing session ──
+        (async () => {
+            const token = localStorage.getItem('admin_token');
+            if (token) {
+                try {
+                    const res = await fetch('/api/admin/stats', {
+                        headers: { 'X-Admin-Token': token }
+                    });
+                    if (res.status === 200) {
+                        window.location.href = 'index.html';
+                    } else {
+                        localStorage.removeItem('admin_token');
+                    }
+                } catch {
+                    localStorage.removeItem('admin_token');
+                }
+            }
+        })();
+
+        // ── Login form ──
         document.getElementById('login-form').addEventListener('submit', async (e) => {
             e.preventDefault();
             const btn = document.getElementById('login-btn');
-            const errEl = document.getElementById('error-msg');
+            clearError();
+
+            if (!rsaPublicKey) {
+                showError('安全未初始化，请刷新页面');
+                return;
+            }
+
             btn.disabled = true;
             btn.innerHTML = '<span class="spinner" style="display:inline-block;width:16px;height:16px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:spin 0.6s linear infinite"></span> 登录中...';
-            errEl.classList.remove('show');
+
+            const styleEl = document.createElement('style');
+            styleEl.textContent = '@keyframes spin{to{transform:rotate(360deg)}}';
+            document.head.appendChild(styleEl);
 
             try {
+                const password = document.getElementById('password').value;
+                const captchaAnswer = document.getElementById('captcha-input').value;
+                const nonce = generateNonce();
+
+                // RSA encrypt password
+                const encrypted = encryptPassword(password, nonce);
+                if (!encrypted) {
+                    showError('密码加密失败，请重试');
+                    return;
+                }
+
                 const res = await fetch('/api/admin/login', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ password: document.getElementById('password').value })
+                    body: JSON.stringify({
+                        password: 'enc:' + encrypted,
+                        nonce: nonce,
+                        captcha_token: currentCaptchaToken,
+                        captcha_answer: captchaAnswer
+                    })
                 });
                 const data = await res.json();
 
@@ -203,17 +353,21 @@
                     localStorage.setItem('admin_token', data.data.token);
                     window.location.href = 'index.html';
                 } else {
-                    errEl.textContent = data.message || '登录失败';
-                    errEl.classList.add('show');
+                    // Reload captcha on failure
+                    loadCaptcha();
+                    document.getElementById('captcha-input').value = '';
+                    showError(data.message || '登录失败');
                 }
             } catch (err) {
-                errEl.textContent = '网络错误，请重试';
-                errEl.classList.add('show');
+                showError('网络错误，请重试');
             } finally {
                 btn.disabled = false;
                 btn.innerHTML = '<i class="fas fa-sign-in-alt"></i> 登录';
             }
         });
+
+        // ── Init on load ──
+        window.addEventListener('DOMContentLoaded', initSecurity);
     </script>
 </body>
 </html>
