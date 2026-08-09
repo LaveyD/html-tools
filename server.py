@@ -228,19 +228,14 @@ def _clear_login_failures(ip):
 
 
 def _rsa_decrypt_password(encrypted_b64, nonce):
-    """Decrypt RSA-OAEP-256 encrypted password. Returns (password, error_msg)."""
+    """Decrypt RSA encrypted password (JSEncrypt uses PKCS1v15). Returns (password, error_msg)."""
     import base64
     try:
         raw = base64.b64decode(encrypted_b64)
         decrypted = RSA_PRIVATE_KEY.decrypt(
             raw,
-            padding.OAEP(
-                mgf=padding.MGF1(algorithm=hashes.SHA256()),
-                algorithm=hashes.SHA256(),
-                label=None,
-            )
+            padding.PKCS1v15()
         )
-        # Decrypt and validate nonce
         plaintext = decrypted.decode('utf-8')
         parts = plaintext.split('|', 1)
         if len(parts) != 2 or parts[0] != nonce:
