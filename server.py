@@ -133,14 +133,27 @@ def extract_exe_icon(exe_path, size=64):
 # Default password: admin123 — change this!
 ADMIN_TOKENS = {}  # token -> expiry
 
-# ── RSA key pair for password encryption ──────────────────
+# ── RSA key pair (persisted to disk, not regenerated on restart) ──
 from cryptography.hazmat.primitives.asymmetric import rsa, padding
 from cryptography.hazmat.primitives import serialization, hashes
 
-RSA_PRIVATE_KEY = rsa.generate_private_key(
-    public_exponent=65537,
-    key_size=2048,
-)
+_RSA_KEY_PATH = BASE_DIR / '.rsa_key.pem'
+
+def _load_or_generate_rsa_key():
+    if _RSA_KEY_PATH.exists():
+        pem_data = _RSA_KEY_PATH.read_bytes()
+        key = serialization.load_pem_private_key(pem_data, password=None)
+    else:
+        key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+        pem = key.private_bytes(
+            encoding=serialization.Encoding.PEM,
+            format=serialization.PrivateFormat.PKCS8,
+            encryption_algorithm=serialization.NoEncryption()
+        )
+        _RSA_KEY_PATH.write_bytes(pem)
+    return key
+
+RSA_PRIVATE_KEY = _load_or_generate_rsa_key()
 RSA_PUBLIC_KEY_PEM = RSA_PRIVATE_KEY.public_key().public_bytes(
     encoding=serialization.Encoding.PEM,
     format=serialization.PublicFormat.SubjectPublicKeyInfo,

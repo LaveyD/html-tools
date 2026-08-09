@@ -14,3 +14,4 @@ venv/
 *.tar.gz
 *.pid
 __pycache__/
+.rsa_key.pem
