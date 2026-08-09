@@ -228,7 +228,7 @@ def _clear_login_failures(ip):
 
 
 def _rsa_decrypt_password(encrypted_b64, nonce):
-    """Decrypt RSA encrypted password (JSEncrypt uses PKCS1v15). Returns (password, error_msg)."""
+    """Decrypt RSA encrypted password (JSEncrypt uses PKCS1v15 + UTF-16LE). Returns (password, error_msg)."""
     import base64
     try:
         raw = base64.b64decode(encrypted_b64)
@@ -236,7 +236,8 @@ def _rsa_decrypt_password(encrypted_b64, nonce):
             raw,
             padding.PKCS1v15()
         )
-        plaintext = decrypted.decode('utf-8')
+        # JSEncrypt internally uses UTF-16LE encoding
+        plaintext = decrypted.decode('utf-16-le')
         parts = plaintext.split('|', 1)
         if len(parts) != 2 or parts[0] != nonce:
             return None, 'Nonce 验证失败'
