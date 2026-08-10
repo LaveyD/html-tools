@@ -1368,9 +1368,9 @@ def admin_request_update(req_id):
 @app.route('/api/admin/tools', methods=['GET'])
 @require_admin
 def admin_tools_list():
-    """List all tools from index.json with blocked status"""
+    """List all tools from tools.json with blocked status"""
     try:
-        with open(BASE_DIR / 'index.json') as f:
+        with open(BASE_DIR / 'tools.json') as f:
             data = json.load(f)
     except Exception:
         return jsonify({'code': 0, 'data': [], 'total': 0})
@@ -1417,7 +1417,7 @@ def admin_block_tool():
     uid = uuid.uuid4().hex
     # Try to get tool name
     try:
-        with open(BASE_DIR / 'index.json') as f:
+        with open(BASE_DIR / 'tools.json') as f:
             raw = json.load(f)
         tool_name = next((t['name'] for t in raw.get('tools', []) if t['id'] == tool_id), tool_id)
     except Exception:

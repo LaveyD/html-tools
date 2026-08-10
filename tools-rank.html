@@ -248,7 +248,7 @@
         let stats = {};
 
         async function loadTools() {
-            const response = await fetch('index.json');
+            const response = await fetch('tools.json');
             if (!response.ok) {
                 throw new Error('加载工具列表失败');
             }

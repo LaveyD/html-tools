@@ -19,13 +19,13 @@ def generate_sitemap():
     
     # 读取工具列表
     try:
-        with open(base_dir / 'index.json', 'r', encoding='utf-8') as f:
+        with open(base_dir / 'tools.json', 'r', encoding='utf-8') as f:
             data = json.load(f)
     except FileNotFoundError:
-        print("错误: 找不到 index.json 文件")
-        sys.exit(1)
+        print("错误: 找不到 tools.json 文件")
+        return []
     except json.JSONDecodeError as e:
-        print(f"错误: index.json 格式错误: {e}")
+        print(f"错误: tools.json 格式错误: {e}")
         sys.exit(1)
     
     urls = []
