@@ -1370,7 +1370,7 @@ def admin_request_update(req_id):
 def admin_tools_list():
     """List all tools from tools.json with blocked status"""
     try:
-        with open(BASE_DIR / 'tools.json') as f:
+        with open(BASE_DIR / 'tools.json', encoding='utf-8') as f:
             data = json.load(f)
     except Exception as e:
         print(f"[ERROR] admin_tools_list: 读取 tools.json 失败: {e}")
@@ -1423,7 +1423,7 @@ def admin_block_tool():
     uid = uuid.uuid4().hex
     # Try to get tool name
     try:
-        with open(BASE_DIR / 'tools.json') as f:
+        with open(BASE_DIR / 'tools.json', encoding='utf-8') as f:
             raw = json.load(f)
         tool_name = next((t['name'] for t in raw.get('tools', []) if t['id'] == tool_id), tool_id)
     except Exception:
