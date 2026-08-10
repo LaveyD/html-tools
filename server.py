@@ -231,10 +231,12 @@ def _generate_captcha():
         draw = ImageDraw.Draw(img)
         # Try to use a font, fall back to default
         font = None
-        for font_path in ['/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf',
-                          '/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf']:
+        for font_path in ['C:/Windows/Fonts/arialbd.ttf',  # Windows: Arial Bold
+                          'C:/Windows/Fonts/arial.ttf',   # Windows: Arial
+                          '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf',  # Linux
+                          '/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf']:# Linux
             if os.path.exists(font_path):
-                font = ImageFont.truetype(font_path, 32)
+                font = ImageFont.truetype(font_path, 28)
                 break
         if not font:
             font = ImageFont.load_default()
