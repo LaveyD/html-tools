@@ -382,19 +382,8 @@ def admin_login():
         _record_login_failure(ip)
         return jsonify({'code': 400, 'message': '验证码错误'}), 400
 
-    # RSA encrypted password (required)
-    if not password_field.startswith('enc:'):
-        _record_login_failure(ip)
-        return jsonify({'code': 400, 'message': '密码格式错误'}), 400
-
-    encrypted_b64 = password_field[4:]  # strip 'enc:' prefix
-    password, err = _rsa_decrypt_password(encrypted_b64, nonce)
-    if err:
-        _record_login_failure(ip)
-        return jsonify({'code': 400, 'message': err}), 400
-
-    # Verify password
-    if not check_password_hash(ADMIN_PASSWORD_HASH, password):
+    # Verify password (plain text — RSA encryption removed due to CDN dependency in intranet)
+    if not check_password_hash(ADMIN_PASSWORD_HASH, password_field):
         _record_login_failure(ip)
         return jsonify({'code': 403, 'message': '密码错误'}), 403
 
@@ -878,6 +867,7 @@ def upload_software():
     except Exception:
         tags = [t.strip() for t in tags_str.split(',') if t.strip()]
 
+    import html as htmlmod
     original_name = secure_filename(file.filename) or 'unknown'
     slug = make_slug(name)
     conn = get_db()
@@ -891,7 +881,7 @@ def upload_software():
         # Update existing software info
         conn.execute(
             "UPDATE software SET name=?, category=?, description=?, tags=?, updated_at=? WHERE id=?",
-            (name, category, description, json.dumps(tags, ensure_ascii=False),
+            (htmlmod.escape(name), category, htmlmod.escape(description), json.dumps(tags, ensure_ascii=False),
              datetime.now().isoformat(), existing['id'])
         )
         sw_id = existing['id']
@@ -901,7 +891,7 @@ def upload_software():
         sw_id = uuid.uuid4().hex
         conn.execute(
             "INSERT INTO software (id, slug, name, category, description, tags) VALUES (?, ?, ?, ?, ?, ?)",
-            (sw_id, slug, name, category, description,
+            (sw_id, slug, htmlmod.escape(name), category, htmlmod.escape(description),
              json.dumps(tags, ensure_ascii=False))
         )
         is_new_software = True
@@ -1236,12 +1226,13 @@ def submit_request():
     if not data.get('title'):
         return jsonify({'code': 400, 'message': '标题不能为空'}), 400
 
+    import html as htmlmod
     uid = uuid.uuid4().hex
     conn = get_db()
     conn.execute(
         "INSERT INTO requests (id, type, title, description, submitter) VALUES (?, ?, ?, ?, ?)",
-        (uid, data.get('type', 'software'), data['title'],
-         data.get('description', ''), data.get('submitter', ''))
+        (uid, data.get('type', 'software'), htmlmod.escape(data['title']),
+         htmlmod.escape(data.get('description', '')), htmlmod.escape(data.get('submitter', '')))
     )
     conn.commit()
     conn.close()

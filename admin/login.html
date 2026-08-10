@@ -6,7 +6,7 @@
     <title>管理登录 - 软件工具集</title>
     <link rel="icon" href="favicon.svg">
     <link rel="stylesheet" href="assets/vendor/fontawesome/css/all.min.css">
-    <script src="https://cdn.jsdelivr.net/npm/jsencrypt@3.3.2/bin/jsencrypt.min.js"></script>
+
     <style>
         :root {
             --primary: #6366f1;
@@ -221,25 +221,10 @@
     </div>
 
     <script>
-        // ── RSA Encryption ──
-        let rsaPublicKey = null;
-        let nonceStore = {};
+        // ── State ──
         let currentCaptchaToken = '';
-        const encryptor = new JSEncrypt();
 
         async function initSecurity() {
-            // Fetch RSA public key
-            try {
-                const res = await fetch('/api/password-public-key');
-                const data = await res.json();
-                if (data.code === 0) {
-                    rsaPublicKey = data.data.public_key;
-                    encryptor.setPublicKey(rsaPublicKey);
-                }
-            } catch (err) {
-                showError('安全初始化失败，请刷新页面重试');
-            }
-            // Load captcha
             loadCaptcha();
         }
 
@@ -261,20 +246,6 @@
             } catch (err) {
                 container.innerHTML = '<span class="placeholder" style="color:var(--red)">加载失败</span>';
             }
-        }
-
-        // ── Generate nonce (UUID v4 in browser) ──
-        function generateNonce() {
-            return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
-                const r = crypto.getRandomValues(new Uint8Array(1))[0] % 16;
-                return (c === 'x' ? r : (r & 0x3) | 0x8).toString(16);
-            });
-        }
-
-        // ── Encrypt password with RSA ──
-        function encryptPassword(password, nonce) {
-            const plaintext = nonce + '|' + password;
-            return encryptor.encrypt(plaintext);
         }
 
         // ── Error display ──
@@ -313,13 +284,8 @@
             const btn = document.getElementById('login-btn');
             clearError();
 
-            if (!rsaPublicKey) {
-                showError('安全未初始化，请刷新页面');
-                return;
-            }
-
             btn.disabled = true;
-            btn.innerHTML = '<span class="spinner" style="display:inline-block;width:16px;height:16px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:spin 0.6s linear infinite"></span> 登录中...';
+            btn.innerHTML = '<span style="display:inline-block;width:16px;height:16px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:spin 0.6s linear infinite"></span> 登录中...';
 
             const styleEl = document.createElement('style');
             styleEl.textContent = '@keyframes spin{to{transform:rotate(360deg)}}';
@@ -328,21 +294,12 @@
             try {
                 const password = document.getElementById('password').value;
                 const captchaAnswer = document.getElementById('captcha-input').value;
-                const nonce = generateNonce();
-
-                // RSA encrypt password
-                const encrypted = encryptPassword(password, nonce);
-                if (!encrypted) {
-                    showError('密码加密失败，请重试');
-                    return;
-                }
 
                 const res = await fetch('/api/admin/login', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        password: 'enc:' + encrypted,
-                        nonce: nonce,
+                        password: password,
                         captcha_token: currentCaptchaToken,
                         captcha_answer: captchaAnswer
                     })
@@ -353,7 +310,6 @@
                     localStorage.setItem('admin_token', data.data.token);
                     window.location.href = 'index.html';
                 } else {
-                    // Reload captcha on failure
                     loadCaptcha();
                     document.getElementById('captcha-input').value = '';
                     showError(data.message || '登录失败');
