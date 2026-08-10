@@ -48,8 +48,8 @@ setup_venv() {
         echo "[提示] 检测到 Python 3.7，安装兼容版 Flask 2.2.x..."
         pip install --quiet "Flask==2.2.5" "Werkzeug==2.2.3"
     else
-        echo "[提示] 安装最新 Flask..."
-        pip install --quiet flask
+        echo "[提示] 安装最新 Flask + 安全依赖..."
+        pip install --quiet flask cryptography pillow
     fi
     echo "[OK] 虚拟环境就绪 ($VENV_DIR)"
 }
@@ -221,8 +221,8 @@ setup_admin_password() {
         if [ -z "$ADMIN_PW" ]; then
             ADMIN_PW="admin123"
         fi
-        HASH=$(python3 -c "import hashlib; print(hashlib.sha256('${ADMIN_PW}'.encode()).hexdigest())")
-        echo '{"password_hash": "'$HASH'"}' > $PROJECT_DIR/.admin_config
+        HASH=$(python3 -c "from werkzeug.security import generate_password_hash; print(generate_password_hash('${ADMIN_PW}'))")
+        echo '{"password_hash": "'"$HASH"'", "force_change": false}' > $PROJECT_DIR/.admin_config
         chmod 600 $PROJECT_DIR/.admin_config
         echo "[OK] 管理员密码已设置"
     else
