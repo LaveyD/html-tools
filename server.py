@@ -1372,12 +1372,18 @@ def admin_tools_list():
     try:
         with open(BASE_DIR / 'tools.json') as f:
             data = json.load(f)
-    except Exception:
-        return jsonify({'code': 0, 'data': [], 'total': 0})
+    except Exception as e:
+        print(f"[ERROR] admin_tools_list: 读取 tools.json 失败: {e}")
+        return jsonify({'code': 500, 'data': [], 'total': 0, 'message': str(e)}), 500
 
     # Get blocked tool IDs from DB
     conn = get_db()
-    blocked = {r['tool_id'] for r in conn.execute("SELECT tool_id FROM blocked_tools").fetchall()}
+    try:
+        blocked = {r['tool_id'] for r in conn.execute("SELECT tool_id FROM blocked_tools").fetchall()}
+    except Exception as e:
+        print(f"[ERROR] admin_tools_list: 查询 blocked_tools 失败: {e}")
+        conn.close()
+        return jsonify({'code': 500, 'data': [], 'total': 0, 'message': str(e)}), 500
     conn.close()
 
     tools = []
