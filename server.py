@@ -1496,6 +1496,40 @@ def get_clicks(tool_id):
     return jsonify({'clicks': row[0] if row else 0})
 
 
+@app.route('/api/admin/password', methods=['POST'])
+@require_admin
+def admin_change_password():
+    """Change admin password"""
+    data = request.get_json(force=True) or {}
+    old_password = data.get('old_password', '')
+    new_password = data.get('new_password', '')
+
+    if not old_password or not new_password:
+        return jsonify({'code': 400, 'message': '请输入旧密码和新密码'}), 400
+
+    if len(new_password) < 6:
+        return jsonify({'code': 400, 'message': '密码长度不能少于6位'}), 400
+
+    # Verify old password
+    if not check_password_hash(ADMIN_PASSWORD_HASH, old_password):
+        return jsonify({'code': 403, 'message': '旧密码错误'}), 403
+
+    # Update password
+    global ADMIN_PASSWORD_HASH
+    ADMIN_PASSWORD_HASH = generate_password_hash(new_password)
+
+    # Persist to disk
+    config_path = BASE_DIR / '.admin_config'
+    config_data = json.load(open(config_path, encoding='utf-8'))
+    config_data['password_hash'] = ADMIN_PASSWORD_HASH
+    config_data['force_change'] = False
+    with open(config_path, 'w', encoding='utf-8') as f:
+        json.dump(config_data, f)
+
+    print(f"[INFO] Admin password changed successfully")
+    return jsonify({'code': 0, 'message': '密码修改成功'})
+
+
 if __name__ == '__main__':
     init_db()
     print("Starting server on 0.0.0.0:8105")

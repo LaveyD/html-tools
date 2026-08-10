@@ -439,6 +439,9 @@
                 <i class="fas fa-wrench"></i> 工具管理
             </a>
             <div class="sidebar-footer">
+                <a href="javascript:showSection('settings')" class="sidebar-link">
+                    <i class="fas fa-cog"></i> 修改密码
+                </a>
                 <a href="javascript:logout()" class="sidebar-link" style="color:var(--red)">
                     <i class="fas fa-sign-out-alt"></i> 退出登录
                 </a>
@@ -634,6 +637,26 @@
                         <div class="pagination-right" id="tool-page-btns"></div>
                     </div>
                 </div>
+            </div>
+        </div>
+
+        <!-- Settings (Change Password) -->
+        <div class="admin-section" id="section-settings">
+            <div class="page-header"><div class="page-title">修改密码</div></div>
+            <div class="card" style="max-width:500px">
+                <div class="form-group">
+                    <label class="form-label">旧密码</label>
+                    <input type="password" class="form-input" id="old-password" placeholder="请输入当前密码">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">新密码</label>
+                    <input type="password" class="form-input" id="new-password" placeholder="至少6位" minlength="6">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">确认新密码</label>
+                    <input type="password" class="form-input" id="confirm-password" placeholder="再次输入新密码">
+                </div>
+                <button type="button" class="btn" onclick="changePassword()" style="margin-top:8px">确认修改</button>
             </div>
         </div>
     </div>
@@ -1399,6 +1422,28 @@
         document.getElementById('tool-status-filter').addEventListener('change', () => {
             toolPage = 1; loadToolsList();
         });
+
+        // ── Change Password ────────────────────────────────────
+        async function changePassword() {
+            const old = document.getElementById('old-password').value;
+            const newp = document.getElementById('new-password').value;
+            const confirm = document.getElementById('confirm-password').value;
+            if (!old || !newp || !confirm) { showToast('请填写所有字段', 'error'); return; }
+            if (newp !== confirm) { showToast('两次输入的新密码不一致', 'error'); return; }
+            if (newp.length < 6) { showToast('密码长度不能少于6位', 'error'); return; }
+            const data = await apiJson('/api/admin/password', {
+                method: 'POST', headers: {'Content-Type':'application/json'},
+                body: JSON.stringify({ old_password: old, new_password: newp })
+            });
+            if (data.code === 0) {
+                showToast('密码修改成功，下次登录生效');
+                document.getElementById('old-password').value = '';
+                document.getElementById('new-password').value = '';
+                document.getElementById('confirm-password').value = '';
+            } else {
+                showToast(data.message, 'error');
+            }
+        }
 
         // ── Init ────────────────────────────────────────
         loadStats();
