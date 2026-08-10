@@ -1500,6 +1500,7 @@ def get_clicks(tool_id):
 @require_admin
 def admin_change_password():
     """Change admin password"""
+    global ADMIN_PASSWORD_HASH
     data = request.get_json(force=True) or {}
     old_password = data.get('old_password', '')
     new_password = data.get('new_password', '')
@@ -1515,7 +1516,6 @@ def admin_change_password():
         return jsonify({'code': 403, 'message': '旧密码错误'}), 403
 
     # Update password
-    global ADMIN_PASSWORD_HASH
     ADMIN_PASSWORD_HASH = generate_password_hash(new_password)
 
     # Persist to disk

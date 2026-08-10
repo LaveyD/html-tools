@@ -338,6 +338,50 @@
             display: inline-flex; align-items: center; gap: 6px; margin-top: 16px;
         }
 
+        /* Generic card / form / btn */
+        .card {
+            background: var(--bg-card); border: 1px solid var(--border);
+            border-radius: 12px; padding: 24px;
+        }
+
+        .form-group { margin-bottom: 16px; }
+
+        .form-label {
+            display: block; font-size: 13px; font-weight: 500;
+            color: var(--text); margin-bottom: 6px;
+        }
+
+        .form-input {
+            width: 100%; padding: 10px 14px;
+            background: var(--bg); border: 1px solid var(--border);
+            border-radius: 8px; color: var(--text); font-size: 14px;
+            transition: all 0.2s; font-family: inherit;
+        }
+        .form-input:focus {
+            outline: none; border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(99,102,241,0.15);
+        }
+
+        .btn {
+            padding: 10px 24px;
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            color: white; border: none; border-radius: 8px;
+            font-size: 14px; font-weight: 600; cursor: pointer;
+            transition: all 0.2s; display: inline-flex;
+            align-items: center; gap: 6px;
+        }
+        .btn:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(99,102,241,0.4); }
+        .btn:active { transform: translateY(0); }
+        .btn:disabled { opacity: 0.6; cursor: not-allowed; transform: none; box-shadow: none; }
+
+        .btn-secondary {
+            padding: 10px 24px; background: var(--bg-hover);
+            color: var(--text); border: 1px solid var(--border); border-radius: 8px;
+            font-size: 14px; cursor: pointer; transition: all 0.2s;
+            display: inline-flex; align-items: center; gap: 6px;
+        }
+        .btn-secondary:hover { border-color: var(--primary); color: var(--primary); }
+
         .btn-upload:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(99,102,241,0.4); }
         .btn-upload:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
 
@@ -401,6 +445,34 @@
 
         .admin-section { display: none; }
         .admin-section.active { display: block; }
+
+        /* Settings page — centered layout */
+        .settings-section.active {
+            display: flex !important;
+            align-items: center;
+            justify-content: center;
+            min-height: calc(100vh - 60px);
+        }
+        .settings-container {
+            width: 100%;
+            max-width: 460px;
+            padding: 24px;
+        }
+        .settings-card {
+            text-align: center;
+        }
+        .settings-header { margin-bottom: 24px; }
+        .settings-icon-circle {
+            width: 56px; height: 56px; border-radius: 50%;
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            display: inline-flex; align-items: center; justify-content: center;
+            margin-bottom: 12px;
+        }
+        .settings-icon-circle i { font-size: 22px; color: #fff; }
+        .settings-header h3 { font-size: 18px; font-weight: 600; margin: 0 0 6px; }
+        .settings-header p { font-size: 13px; color: var(--text-muted); margin: 0; }
+        .settings-btn { width: 100%; justify-content: center; margin-top: 8px; padding: 12px; }
+        .settings-hint { font-size: 12px; color: var(--text-muted); margin: 14px 0 0; }
 
         .empty-state { text-align: center; padding: 40px; color: var(--text-muted); }
         .desc-cell { max-width: 200px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -641,22 +713,35 @@
         </div>
 
         <!-- Settings (Change Password) -->
-        <div class="admin-section" id="section-settings">
-            <div class="page-header"><div class="page-title">修改密码</div></div>
-            <div class="card" style="max-width:500px">
-                <div class="form-group">
-                    <label class="form-label">旧密码</label>
-                    <input type="password" class="form-input" id="old-password" placeholder="请输入当前密码">
+        <div class="admin-section settings-section" id="section-settings">
+            <div class="settings-container">
+                <div class="card settings-card">
+                    <div class="settings-header">
+                        <div class="settings-icon-circle">
+                            <i class="fas fa-lock"></i>
+                        </div>
+                        <h3>修改密码</h3>
+                        <p>为保障账户安全，建议定期更换密码</p>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label"><i class="fas fa-key" style="margin-right:6px;color:var(--text-muted)"></i>旧密码</label>
+                        <input type="password" class="form-input" id="old-password" placeholder="请输入当前管理密码" autocomplete="off">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label"><i class="fas fa-shield-alt" style="margin-right:6px;color:var(--text-muted)"></i>新密码</label>
+                        <input type="password" class="form-input" id="new-password" placeholder="至少6位字符" minlength="6" autocomplete="new-password">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label"><i class="fas fa-shield-alt" style="margin-right:6px;color:var(--text-muted)"></i>确认新密码</label>
+                        <input type="password" class="form-input" id="confirm-password" placeholder="再次输入新密码" autocomplete="new-password">
+                    </div>
+                    <button type="button" class="btn settings-btn" onclick="changePassword()">
+                        <i class="fas fa-check"></i> 确认修改
+                    </button>
+                    <p class="settings-hint">
+                        <i class="fas fa-info-circle"></i> 修改后下次登录生效
+                    </p>
                 </div>
-                <div class="form-group">
-                    <label class="form-label">新密码</label>
-                    <input type="password" class="form-input" id="new-password" placeholder="至少6位" minlength="6">
-                </div>
-                <div class="form-group">
-                    <label class="form-label">确认新密码</label>
-                    <input type="password" class="form-input" id="confirm-password" placeholder="再次输入新密码">
-                </div>
-                <button type="button" class="btn" onclick="changePassword()" style="margin-top:8px">确认修改</button>
             </div>
         </div>
     </div>
