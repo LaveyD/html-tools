@@ -133,32 +133,6 @@ def extract_exe_icon(exe_path, size=64):
 # Default password: admin123 — change this!
 ADMIN_TOKENS = {}  # token -> expiry
 
-# ── RSA key pair (persisted to disk, not regenerated on restart) ──
-from cryptography.hazmat.primitives.asymmetric import rsa, padding
-from cryptography.hazmat.primitives import serialization, hashes
-
-_RSA_KEY_PATH = BASE_DIR / '.rsa_key.pem'
-
-def _load_or_generate_rsa_key():
-    if _RSA_KEY_PATH.exists():
-        pem_data = _RSA_KEY_PATH.read_bytes()
-        key = serialization.load_pem_private_key(pem_data, password=None)
-    else:
-        key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
-        pem = key.private_bytes(
-            encoding=serialization.Encoding.PEM,
-            format=serialization.PrivateFormat.PKCS8,
-            encryption_algorithm=serialization.NoEncryption()
-        )
-        _RSA_KEY_PATH.write_bytes(pem)
-    return key
-
-RSA_PRIVATE_KEY = _load_or_generate_rsa_key()
-RSA_PUBLIC_KEY_PEM = RSA_PRIVATE_KEY.public_key().public_bytes(
-    encoding=serialization.Encoding.PEM,
-    format=serialization.PublicFormat.SubjectPublicKeyInfo,
-).decode('ascii')
-
 # ── Captcha (in-memory, no Redis needed) ──────────────────
 import random
 import string
@@ -238,25 +212,6 @@ def _clear_login_failures(ip):
     """Clear login failure count on successful login."""
     LOGIN_FAIL_COUNTS.pop(ip, None)
     ACCOUNT_LOCKOUTS.pop(ip, None)
-
-
-def _rsa_decrypt_password(encrypted_b64, nonce):
-    """Decrypt RSA encrypted password (JSEncrypt uses PKCS1v15 + UTF-16LE). Returns (password, error_msg)."""
-    import base64
-    try:
-        raw = base64.b64decode(encrypted_b64)
-        decrypted = RSA_PRIVATE_KEY.decrypt(
-            raw,
-            padding.PKCS1v15()
-        )
-        # JSEncrypt internally uses UTF-16LE encoding
-        plaintext = decrypted.decode('utf-16-le')
-        parts = plaintext.split('|', 1)
-        if len(parts) != 2 or parts[0] != nonce:
-            return None, 'Nonce 验证失败'
-        return parts[1], None
-    except Exception:
-        return None, '密码解密失败'
 
 
 def _generate_captcha():
@@ -401,12 +356,6 @@ def admin_login():
         max_age=86400
     )
     return resp
-
-
-@app.route('/api/password-public-key', methods=['GET'])
-def get_public_key():
-    """Return RSA public key for client-side password encryption."""
-    return jsonify({'code': 0, 'data': {'public_key': RSA_PUBLIC_KEY_PEM}})
 
 
 @app.route('/api/captcha', methods=['GET'])

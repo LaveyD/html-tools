@@ -48,8 +48,8 @@ setup_venv() {
         echo "[提示] 检测到 Python 3.7，安装兼容版 Flask 2.2.x..."
         pip install --quiet "Flask==2.2.5" "Werkzeug==2.2.3"
     else
-        echo "[提示] 安装最新 Flask + 安全依赖..."
-        pip install --quiet flask cryptography pillow
+        echo "[提示] 安装最新 Flask + Pillow (验证码)..."
+        pip install --quiet flask pillow
     fi
     echo "[OK] 虚拟环境就绪 ($VENV_DIR)"
 }
