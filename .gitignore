@@ -15,3 +15,6 @@ venv/
 *.pid
 __pycache__/
 .rsa_key.pem
+server.crt
+server.key
+server.pfx
