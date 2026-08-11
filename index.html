@@ -364,6 +364,12 @@
             flex-shrink: 0;
         }
 
+        /* Tool card SVG icon */
+        .tool-svg-icon {
+            width: 28px;
+            height: 28px;
+        }
+
         /* Content Sections */
         .content-section {
             display: none;
@@ -895,12 +901,15 @@
 
             container.innerHTML = filtered.map(tool => {
                 const category = toolsData.categories?.find(c => c.id === tool.category);
+                const iconSvg = tool.icon && tool.icon.endsWith('.svg')
+                    ? `<img class="cat-icon tool-svg-icon" src="/assets/icons/${tool.icon}" alt="">`
+                    : tool.icon || '🔧';
                 return `
                 <a href="${tool.entry}" class="tool-card">
                     ${tool.featured ? '<span class="featured-badge">精选</span>' : ''}
                     <div class="tool-header">
-                        <div class="tool-icon" style="background: ${tool.color}20; color: ${tool.color};">
-                            ${tool.icon}
+                        <div class="tool-icon" style="background: ${tool.color}20;">
+                            ${iconSvg}
                         </div>
                         <div class="tool-info">
                             <div class="tool-title">${tool.name}</div>
