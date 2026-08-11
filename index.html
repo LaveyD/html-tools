@@ -458,12 +458,27 @@
         .tool-icon-img {
             background: transparent;
             overflow: hidden;
+            position: relative;
         }
 
         .tool-icon-img img {
             width: 100%;
             height: 100%;
             object-fit: contain;
+        }
+
+        .tool-icon-img .primary-icon {
+            position: relative;
+            z-index: 1;
+        }
+
+        .tool-icon-img .fallback-icon {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 0;
         }
 
         .tool-info { flex: 1; min-width: 0; }
@@ -977,18 +992,15 @@
 
             container.innerHTML = filtered.map(sw => {
                 const cat = softwareCategories.find(c => c.id === sw.category) || { icon: 'extension-plugin.svg', name: sw.category };
-                const catIconSvg = cat.icon ? `<img class="cat-icon" src="/assets/icons/${cat.icon}" alt="">` : '';
                 const latestVer = sw.latest_version;
                 const latestSize = sw.latest_size;
-                const iconHtml = sw.icon_url
-                    ? `<img src="${sw.icon_url}" alt="${htmlEscape(sw.name)}" onerror="this.parentElement.innerHTML='${catIconSvg}';this.parentElement.style.background='#3b82f620';this.parentElement.style.color='#3b82f6';">`
-                    : catIconSvg;
-                const iconClass = sw.icon_url
-                    ? 'tool-icon tool-icon-img'
-                    : 'tool-icon';
-                const iconStyle = sw.icon_url
-                    ? ''
-                    : 'background: #3b82f620; color: #3b82f6;';
+                const hasIcon = sw.icon_url;
+                const fallbackSvg = cat.icon ? `<img class="cat-icon" src="/assets/icons/${cat.icon}" alt="">` : '';
+                const iconHtml = hasIcon
+                    ? `<img class="primary-icon" src="${sw.icon_url}" alt="${htmlEscape(sw.name)}"><img class="fallback-icon" src="/assets/icons/${cat.icon || 'extension-plugin.svg'}" alt="">`
+                    : fallbackSvg;
+                const iconClass = hasIcon ? 'tool-icon tool-icon-img' : 'tool-icon';
+                const iconStyle = hasIcon ? '' : 'background: #3b82f620; color: #3b82f6;';
                 return `
                 <div class="tool-card" onclick="window.location.href='software/detail.html#${sw.slug}'">
                     <div class="tool-header">
@@ -997,7 +1009,7 @@
                         </div>
                         <div class="tool-info">
                             <div class="tool-title">${htmlEscape(sw.name)}</div>
-                            <div class="tool-category">${catIconSvg} ${cat.name}</div>
+                            <div class="tool-category">${fallbackSvg} ${cat.name}</div>
                             ${latestVer ? `<div class="tool-version">v${latestVer} · ${sw.version_count || 1} 个版本</div>` : ''}
                             ${latestSize ? `<div class="tool-size">${latestSize}</div>` : ''}
                         </div>
