@@ -3158,31 +3158,31 @@
     {
       "id": "converter",
       "name": "格式转换",
-      "icon": "🔄",
+      "icon": "file-converter.svg",
       "description": "各种文件和数据格式之间的转换工具"
     },
     {
       "id": "developer",
       "name": "开发者工具",
-      "icon": "👨‍💻",
+      "icon": "code-editor.svg",
       "description": "面向开发者的实用工具集合"
     },
     {
       "id": "text",
       "name": "文本处理",
-      "icon": "📝",
+      "icon": "typography.svg",
       "description": "文本编辑、格式化和处理工具"
     },
     {
       "id": "image",
       "name": "图片处理",
-      "icon": "🖼️",
+      "icon": "image-crop.svg",
       "description": "图片编辑、转换和优化工具"
     },
     {
       "id": "utility",
       "name": "实用工具",
-      "icon": "🧰",
+      "icon": "calculator.svg",
       "description": "日常生活中的实用小工具"
     }
   ]

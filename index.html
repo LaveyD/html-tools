@@ -344,6 +344,9 @@
             cursor: pointer;
             transition: all 0.2s;
             font-size: 13px;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
         }
 
         .category-tab:hover { background: var(--bg-hover); }
@@ -352,6 +355,13 @@
             background: linear-gradient(135deg, var(--primary), var(--secondary));
             border-color: transparent;
             color: white;
+        }
+
+        .category-tab .cat-icon {
+            width: 16px;
+            height: 16px;
+            display: inline-block;
+            flex-shrink: 0;
         }
 
         /* Content Sections */
@@ -473,6 +483,13 @@
             display: flex;
             align-items: center;
             gap: 4px;
+        }
+
+        .tool-category .cat-icon {
+            width: 14px;
+            height: 14px;
+            display: inline-block;
+            flex-shrink: 0;
         }
 
         .tool-version {
@@ -809,12 +826,17 @@
             }
         }
 
+        function catIconSVG(icon) {
+            if (!icon || !icon.endsWith('.svg')) return '';
+            return `<img class="cat-icon" src="/assets/icons/${icon}" alt="">`;
+        }
+
         function renderToolsCategories() {
             const container = document.getElementById('tools-categories');
             const cats = toolsData.categories || [];
-            let html = '<button class="category-tab active" onclick="setToolsCategory(\'all\')">全部</button>';
+            let html = '<button class="category-tab active" onclick="setToolsCategory(\'all\')"><img class="cat-icon" src="/assets/icons/cloud-sync.svg" alt="">全部</button>';
             cats.forEach(c => {
-                html += `<button class="category-tab" onclick="setToolsCategory('${c.id}')">${c.icon || ''} ${c.name}</button>`;
+                html += `<button class="category-tab" onclick="setToolsCategory('${c.id}')">${catIconSVG(c.icon)} ${c.name}</button>`;
             });
             container.innerHTML = html;
         }
@@ -867,7 +889,7 @@
                         </div>
                         <div class="tool-info">
                             <div class="tool-title">${tool.name}</div>
-                            <div class="tool-category">${category?.icon || ''} ${category?.name || '未分类'}</div>
+                            <div class="tool-category">${catIconSVG(category?.icon)} ${category?.name || '未分类'}</div>
                         </div>
                     </div>
                     <div class="tool-description">${tool.description}</div>
@@ -885,13 +907,13 @@
         let softwareList = [];
         let softwareCategory = 'all';
         const softwareCategories = [
-            { id: 'dev', name: '开发工具', icon: '💻' },
-            { id: 'design', name: '设计工具', icon: '🎨' },
-            { id: 'system', name: '系统工具', icon: '⚙️' },
-            { id: 'security', name: '安全工具', icon: '🔒' },
-            { id: 'network', name: '网络工具', icon: '🌐' },
-            { id: 'office', name: '办公工具', icon: '📄' },
-            { id: 'other', name: '其他', icon: '📦' },
+            { id: 'dev', name: '开发工具', icon: 'code-editor.svg' },
+            { id: 'design', name: '设计工具', icon: 'vector-pen.svg' },
+            { id: 'system', name: '系统工具', icon: 'cpu-hardware.svg' },
+            { id: 'security', name: '安全工具', icon: 'security-shield.svg' },
+            { id: 'network', name: '网络工具', icon: 'wifi-router.svg' },
+            { id: 'office', name: '办公工具', icon: 'doc-writer.svg' },
+            { id: 'other', name: '其他', icon: 'extension-plugin.svg' },
         ];
 
         async function loadSoftware() {
@@ -908,9 +930,9 @@
 
         function renderSoftwareCategories() {
             const container = document.getElementById('software-categories');
-            let html = '<button class="category-tab active" onclick="setSoftwareCategory(\'all\')">全部</button>';
+            let html = '<button class="category-tab active" onclick="setSoftwareCategory(\'all\')"><img class="cat-icon" src="/assets/icons/cloud-sync.svg" alt="">全部</button>';
             softwareCategories.forEach(c => {
-                html += `<button class="category-tab" onclick="setSoftwareCategory('${c.id}')">${c.icon} ${c.name}</button>`;
+                html += `<button class="category-tab" onclick="setSoftwareCategory('${c.id}')"><img class="cat-icon" src="/assets/icons/${c.icon}" alt="">${c.name}</button>`;
             });
             container.innerHTML = html;
         }
@@ -954,12 +976,13 @@
             }
 
             container.innerHTML = filtered.map(sw => {
-                const cat = softwareCategories.find(c => c.id === sw.category) || { icon: '📦', name: sw.category };
+                const cat = softwareCategories.find(c => c.id === sw.category) || { icon: 'extension-plugin.svg', name: sw.category };
+                const catIconSvg = cat.icon ? `<img class="cat-icon" src="/assets/icons/${cat.icon}" alt="">` : '';
                 const latestVer = sw.latest_version;
                 const latestSize = sw.latest_size;
                 const iconHtml = sw.icon_url
-                    ? `<img src="${sw.icon_url}" alt="${htmlEscape(sw.name)}" onerror="this.parentElement.innerHTML='${cat.icon}';this.parentElement.style.background='#3b82f620';this.parentElement.style.color='#3b82f6';">`
-                    : cat.icon;
+                    ? `<img src="${sw.icon_url}" alt="${htmlEscape(sw.name)}" onerror="this.parentElement.innerHTML='${catIconSvg}';this.parentElement.style.background='#3b82f620';this.parentElement.style.color='#3b82f6';">`
+                    : catIconSvg;
                 const iconClass = sw.icon_url
                     ? 'tool-icon tool-icon-img'
                     : 'tool-icon';
@@ -974,7 +997,7 @@
                         </div>
                         <div class="tool-info">
                             <div class="tool-title">${htmlEscape(sw.name)}</div>
-                            <div class="tool-category">${cat.icon} ${cat.name}</div>
+                            <div class="tool-category">${catIconSvg} ${cat.name}</div>
                             ${latestVer ? `<div class="tool-version">v${latestVer} · ${sw.version_count || 1} 个版本</div>` : ''}
                             ${latestSize ? `<div class="tool-size">${latestSize}</div>` : ''}
                         </div>
