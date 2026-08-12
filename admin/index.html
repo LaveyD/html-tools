@@ -152,18 +152,38 @@
             border-radius: 12px; overflow: hidden;
         }
 
-        table { width: 100%; border-collapse: collapse; }
+        table { width: 100%; border-collapse: collapse; table-layout: fixed; }
 
         th {
             text-align: left; padding: 12px 16px; font-size: 12px;
             font-weight: 600; color: var(--text-muted);
             border-bottom: 1px solid var(--border); white-space: nowrap;
+            overflow: hidden; text-overflow: ellipsis;
         }
 
         td {
             padding: 12px 16px; font-size: 13px;
             border-bottom: 1px solid var(--border); vertical-align: middle;
+            overflow: hidden; text-overflow: ellipsis;
         }
+
+        /* Table column widths for requests table */
+        .req-table td:nth-child(1), .req-table th:nth-child(1) { width: 60px; }  /* 类型 */
+        .req-table td:nth-child(2), .req-table th:nth-child(2) { width: 200px; } /* 标题 */
+        .req-table td:nth-child(3), .req-table th:nth-child(3) { }              /* 描述 - auto */
+        .req-table td:nth-child(4), .req-table th:nth-child(4) { width: 100px; }/* 提交人 */
+        .req-table td:nth-child(5), .req-table th:nth-child(5) { width: 80px; } /* 状态 */
+        .req-table td:nth-child(6), .req-table th:nth-child(6) { width: 160px; }/* 时间 */
+        .req-table td:nth-child(7), .req-table th:nth-child(7) { width: 120px; }/* 操作 */
+
+        /* Table column widths for tools table */
+        .tools-table td:nth-child(1), .tools-table th:nth-child(1) { width: 50px; }  /* 图标 */
+        .tools-table td:nth-child(2), .tools-table th:nth-child(2) { width: 140px; } /* 名称 */
+        .tools-table td:nth-child(3), .tools-table th:nth-child(3) { width: 120px; } /* ID */
+        .tools-table td:nth-child(4), .tools-table th:nth-child(4) { width: 80px; }  /* 分类 */
+        .tools-table td:nth-child(5), .tools-table th:nth-child(5) { }              /* 描述 - auto */
+        .tools-table td:nth-child(6), .tools-table th:nth-child(6) { width: 70px; } /* 状态 */
+        .tools-table td:nth-child(7), .tools-table th:nth-child(7) { width: 110px; }/* 操作 */
 
         tr:last-child td { border-bottom: none; }
         tr:hover td { background: var(--bg-hover); }
