@@ -674,7 +674,9 @@
 
             <!-- Requests -->
             <div class="admin-section" id="section-requests">
-                <div class="page-header"><div class="page-title">需求管理</div></div>
+                <div class="page-header"><div class="page-title">需求管理</div>
+                    <button class="btn-secondary" onclick="clearAllRequests()" style="font-size:12px;padding:6px 14px"><i class="fas fa-trash-alt"></i> 清空全部</button>
+                </div>
                 <div class="filter-bar">
                     <select class="filter-select" id="req-status-filter">
                         <option value="">全部状态</option>
@@ -1391,9 +1393,10 @@
                 <td><div class="actions-group">
                     <button class="action-btn" onclick="showReqDetail('${r.id}')" title="详情"><i class="fas fa-eye"></i></button>
                     ${r.status==='pending'?`
-                    <button class="action-btn success" onclick="updateReq('${r.id}','processing')"><i class="fas fa-play"></i></button>
-                    <button class="action-btn" onclick="updateReq('${r.id}','done')"><i class="fas fa-check"></i></button>
-                    <button class="action-btn danger" onclick="updateReq('${r.id}','rejected')"><i class="fas fa-times"></i></button>`:''}
+                    <button class="action-btn success" onclick="updateReq('${r.id}','processing')" title="开始处理"><i class="fas fa-play"></i></button>
+                    <button class="action-btn success" onclick="updateReq('${r.id}','done')" title="标记完成"><i class="fas fa-check"></i></button>
+                    <button class="action-btn danger" onclick="updateReq('${r.id}','rejected')" title="拒绝"><i class="fas fa-ban"></i></button>`:''}
+                    <button class="action-btn danger" onclick="deleteReq('${r.id}')" title="删除"><i class="fas fa-trash"></i></button>
                 </div></td>
             </tr>`).join('');
         }
@@ -1406,6 +1409,20 @@
                 body: JSON.stringify({ status })
             });
             if (data.code === 0) { showToast('状态更新成功'); loadRequests(); loadStats(); }
+            else showToast(data.message, 'error');
+        }
+
+        async function deleteReq(id) {
+            if (!confirm('确定删除这条需求？此操作不可恢复。')) return;
+            const data = await apiJson(`/api/admin/request/${id}`, { method:'DELETE' });
+            if (data.code === 0) { showToast('已删除'); loadRequests(); loadStats(); }
+            else showToast(data.message, 'error');
+        }
+
+        async function clearAllRequests() {
+            if (!confirm('确定清空所有需求数据？此操作不可恢复！')) return;
+            const data = await apiJson('/api/admin/requests/clear', { method:'POST' });
+            if (data.code === 0) { showToast(data.message); loadRequests(); loadStats(); }
             else showToast(data.message, 'error');
         }
 

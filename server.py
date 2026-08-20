@@ -1363,6 +1363,34 @@ def admin_request_update(req_id):
     return jsonify({'code': 0, 'message': '更新成功'})
 
 
+@app.route('/api/admin/request/<req_id>', methods=['DELETE'])
+@require_admin
+def admin_request_delete(req_id):
+    conn = get_db()
+    row = conn.execute("SELECT * FROM requests WHERE id=?", (req_id,)).fetchone()
+    if not row:
+        conn.close()
+        return jsonify({'code': 404, 'message': '需求不存在'}), 404
+    conn.execute("DELETE FROM requests WHERE id=?", (req_id,))
+    conn.commit()
+    conn.close()
+    print(f"[INFO] Request {req_id} deleted")
+    return jsonify({'code': 0, 'message': '已删除'})
+
+
+@app.route('/api/admin/requests/clear', methods=['POST'])
+@require_admin
+def admin_request_clear():
+    """清空所有需求数据"""
+    conn = get_db()
+    count = conn.execute("SELECT COUNT(*) FROM requests").fetchone()[0]
+    conn.execute("DELETE FROM requests")
+    conn.commit()
+    conn.close()
+    print(f"[INFO] Cleared {count} requests")
+    return jsonify({'code': 0, 'message': f'已清空 {count} 条需求'})
+
+
 # ─── Tools Management (blocked tools) ────────────────────────
 
 @app.route('/api/admin/tools', methods=['GET'])
